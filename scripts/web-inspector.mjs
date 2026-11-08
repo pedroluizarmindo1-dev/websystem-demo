@@ -16,6 +16,7 @@ try{
     check(errors.length===0,`Sem erros JavaScript · ${width}px${errors.length?' ('+errors.join('; ')+')':''}`);
     check(await page.evaluate(()=>[...document.querySelectorAll('h2')].some(x=>x.textContent.includes('Entrar na conta'))),`Login renderizado · ${width}px`);
     check(await page.$('#ws-username')!==null&&await page.$('#ws-password')!==null,`Campos de login · ${width}px`);
+    check(await page.evaluate(()=>{const logo=document.querySelector('.loginBrandLogo');return !!logo&&logo.tagName.toLowerCase()==='svg'&&!!logo.querySelector('path')}),`Marca vetorial visível · ${width}px`);
     check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),`Sem overflow horizontal · ${width}px`);
     if(width===390){
       await page.evaluate(()=>document.querySelector('button[aria-label="Mostrar senha"]')?.click());
