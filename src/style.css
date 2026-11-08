@@ -39,3 +39,76 @@
 .floatingSupport a,.floatingSupport button{background:#d6f467;border:0;color:#14200d;text-decoration:none;font-size:12px;font-weight:800;padding:12px 16px;border-radius:24px;box-shadow:0 5px 24px #0008;cursor:pointer}
 .floatingSupport a{background:#243847;color:#e2f3fc;border:1px solid #47677d}
 @media(max-width:720px){.globalSearch{flex-wrap:wrap}.globalSearch button{width:100%}.commerceForm{grid-template-columns:1fr}.floatingSupport{right:10px;bottom:10px}.floatingSupport a,.floatingSupport button{padding:10px}}
+
+/* Responsive catalog resize fix: prevent table content from expanding the app viewport. */
+html,body,#root{width:100%;min-width:0;max-width:100%;overflow-x:clip}
+.shell,.main,.content,.panel,.tablewrap,.panelhead,.heading{min-width:0;max-width:100%}
+.tablewrap{width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.panelhead>div,.heading>div{min-width:0}
+.panelhead h2,.panelhead p,.heading p{overflow-wrap:anywhere}
+.catalogTable td:first-child strong{white-space:normal;overflow-wrap:anywhere}
+.catalogTable td:first-child{min-width:200px;max-width:440px;white-space:normal}
+.serviceHero>div:first-child{min-width:0}
+.serviceCategories{max-width:100%;scrollbar-width:thin}
+@media(max-width:720px){
+ .shell,.main,.content{width:100%;max-width:100%;min-width:0}
+ .content{padding:18px 12px 85px}
+ .sidebar{max-width:100vw;overflow:hidden;padding:10px 12px}
+ .brand{padding-bottom:10px}
+ nav{width:100%;max-width:100%;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
+ nav::-webkit-scrollbar{display:none}
+ nav button{flex:0 0 auto;min-height:42px;padding:11px 12px}
+ header{padding:0 12px;gap:8px}
+ .breadcrumbs{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .breadcrumbs span{padding:0 5px}
+ .headerRight{gap:8px;flex-shrink:0}
+ .headerRight .avatar{display:none}
+ .headerRight .live{font-size:11px;white-space:nowrap}
+ .logout{padding:7px 9px}
+ .heading{gap:10px;margin-bottom:18px;flex-wrap:wrap}
+ .heading h1{font-size:23px}
+ .heading>.primary{padding:10px 12px}
+ .panelhead{padding:16px 14px;flex-wrap:wrap;align-items:flex-start}
+ .panelhead .outline{max-width:100%;white-space:normal}
+ .serviceHero{padding:18px 14px;gap:10px}
+ .serviceHeroCount{min-width:68px}
+ .serviceHeroCount span{text-align:center}
+ .serviceCategories{gap:7px;padding:12px 14px}
+ .serviceCategories button{flex:0 0 auto;min-height:40px}
+ .catalogTable{overflow-x:visible;padding:10px 12px 4px}
+ .catalogTable table,.catalogTable tbody,.catalogTable tr,.catalogTable td{display:block;width:100%;min-width:0;max-width:100%}
+ .catalogTable thead{display:none}
+ .catalogTable tbody{display:grid;gap:12px}
+ .catalogTable tr{background:#16212d;border:1px solid #304051;border-radius:12px;padding:13px 14px;box-shadow:0 3px 12px #0002}
+ .catalogTable td{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;white-space:normal;text-align:right;padding:8px 0;border:0;overflow-wrap:anywhere;min-height:30px}
+ .catalogTable td:first-child{display:block;text-align:left;min-width:0;max-width:100%;border-bottom:1px solid #304051;padding:0 0 13px;margin-bottom:6px}
+ .catalogTable td:first-child strong{display:block;color:#f0f5fb;font-size:14px;line-height:1.5}
+ .catalogTable td:not(:first-child)::before{content:'Detalhe';flex:0 0 42%;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#7f91a5;text-align:left}
+ .catalogTable td:nth-child(2)::before{content:'Categoria'}
+ .catalogTable td:nth-child(3)::before{content:'USD'}
+ .catalogTable td:nth-child(4)::before{content:'BRL estimado'}
+ .catalogTable td:nth-child(5)::before{content:'Ação'}
+ .catalogTable td:nth-child(6)::before{content:'Disponibilidade'}
+ .catalogTable td:last-child .serviceAction{min-height:40px;justify-content:center}
+ .catalogTable td:last-child{align-items:center}
+ .catalogTable td strong{white-space:normal}
+ .catalogTable:has(th:nth-child(6)) td:nth-child(3)::before{content:'Modelo'}
+ .catalogTable:has(th:nth-child(6)) td:nth-child(4)::before{content:'USD'}
+ .catalogTable:has(th:nth-child(6)) td:nth-child(5)::before{content:'BRL estimado'}
+ .catalogTable:has(th:nth-child(6)) td:nth-child(6)::before{content:'Disponibilidade'}
+ .servicePagination{flex-wrap:wrap}
+ .servicePagination button{min-height:42px}
+ .search{padding:12px}
+ .search input,.commerceForm input,.commerceForm select,.commerceForm textarea,.pricingForm input,.globalSearch input{font-size:16px}
+ .globalSearch{padding:12px}
+ .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .metric{min-width:0}
+ .metricvalue{overflow-wrap:anywhere}
+}
+@media(max-width:390px){
+ .content{padding-left:9px;padding-right:9px}
+ .heading>.primary{width:100%}
+ .headerRight .live{font-size:10px}
+ .catalogTable tr{padding:12px}
+ .catalogTable td{gap:8px}
+}
