@@ -293,3 +293,93 @@ tr:hover td{background:#ffffff04}
  .mobileDock button span{font-size:8px}
  .headingAction{width:auto}
 }
+
+/* Brand refresh: near-black + deep forest green */
+:root{color-scheme:dark;--ws-bg:#070a08;--ws-panel:#101813;--ws-panel-raised:#16221a;--ws-border:#263b2c;--ws-text:#eff5ef;--ws-muted:#a2b5a5;--ws-accent:#79b783;--ws-radius:14px}
+body,.shell{background:var(--ws-bg);color:var(--ws-text)}
+.sidebar{background:#0b120e;border-right-color:var(--ws-border)}
+.sidebar nav button{color:#a6b9a9}
+.sidebar nav button.active{background:#1a3422;color:#b5e2bb}
+.sidebar nav button:hover{background:#17281d}
+.brandmark{background:#1d4b2b;color:#e0f6e2}
+.brandmark span{color:#a7d9b0}
+header{background:rgba(9,16,11,.97);border-bottom-color:var(--ws-border)}
+.walletBalance strong,.eyebrow,.serviceHeroCount,.toolCard>strong{color:#9ad4a4}
+.depositTop,.primary{background:#286c3e;border-color:#397c4c;color:#f4fff4}
+.depositTop:hover,.primary:hover{background:#347d49}
+.panel,.metric{background:var(--ws-panel);border-color:var(--ws-border)}
+.metricicon,.remoteicon{background:#1b3423;color:#b5e5bc}
+.serviceHero{background:linear-gradient(115deg,#183421,#101813 74%);border-bottom-color:#28402e}
+.serviceHeroCount span{color:#9fb3a4}
+.serviceCategories button,.quickChips button{background:#15221a;border-color:#2a4432;color:#b4c8b7}
+.serviceCategories button.selected,.quickChips button.selected{background:#245b36;border-color:#39804c;color:#e9ffed}
+.globalSearch{background:#0f1a13;border-color:#2f5739;color:#a9dcb2}
+.globalSearch:focus-within{border-color:#75b482}
+.globalSearch input{color:#f0f7f1}
+.toolSection,.panelhead,.serviceCategories{border-color:var(--ws-border)}
+.toolCard{background:#142018;border-color:#2b4532}
+.toolIcon{background:#20442b;color:#b5e9be}
+.toolCard h3{color:#edf6ee}
+.serviceAction{background:#214d2e;border-color:#367e49;color:#d8f3dc}
+.serviceAction:hover{background:#2c643c}
+.outline{background:#142219;border-color:#34543c;color:#d3e7d7}
+table th{background:#16231a;color:#a5baa8}
+table td{border-color:#283b2d}
+.campaignBar>div{background:#14291b;border-color:#2f4e37}
+.floatingSupport a{background:#142b1d;border-color:#3a6947;color:#d6eedb}
+.floatingSupport button{background:#2e7242;color:#fff}
+.mobileDock{background:#0d170f;border-color:#29422f}
+.mobileDock button.active{background:#1b3b25;color:#aee2b6}
+.loginScreen{background:radial-gradient(ellipse at 50% 10%,#193a22 0%,#070a08 60%)}
+.loginCard{background:#101813;border-color:#2a4a33}
+.notice{background:#1a3824;color:#c9eed0}
+.status,.count{background:#1c3d28;color:#bce7c2}
+.tatBadge.instant{background:#1a4a2b;color:#b9f0c4}
+.tatBadge.hours{background:#4a3d1d;color:#f4d88d}
+.tatBadge.days{background:#1a3741;color:#b8dce9}
+/* Redesigned service list: proportional, predictable columns without overflow */
+.serviceResults{min-width:0;width:100%;padding:0 16px 6px}
+.serviceResultsHeader,.serviceResult{display:grid;grid-template-columns:minmax(0,2.7fr) minmax(112px,.95fr) minmax(132px,1.05fr) minmax(100px,.75fr);gap:16px;align-items:center}
+.serviceResultsHeader{padding:13px 15px;background:#16231a;color:#8fa993;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;border-radius:9px 9px 0 0}
+.serviceResultsBody{display:grid}
+.serviceResult{min-width:0;padding:16px 15px;border-bottom:1px solid #243a2a;background:#101813}
+.serviceResult:last-child{border-bottom:0;border-radius:0 0 9px 9px}
+.serviceResult:hover{background:#14221a}
+.serviceIdentity{min-width:0;display:flex;flex-direction:column;gap:8px}
+.serviceIdentity>strong{font-size:13px;line-height:1.45;font-weight:700;color:#edf7ef;overflow-wrap:anywhere;word-break:normal}
+.serviceMeta{display:flex;flex-wrap:wrap;gap:6px}
+.serviceMeta span{font-size:10px;line-height:1.4;color:#9cb2a1;background:#1a2b1f;border:1px solid #2a4130;border-radius:5px;padding:4px 7px;overflow-wrap:anywhere}
+.serviceTAT,.servicePrice,.serviceRequest{min-width:0}
+.servicePrice{display:flex;flex-direction:column;gap:4px}
+.servicePrice strong{font-size:15px;white-space:normal;overflow-wrap:anywhere;color:#d5f1d9}
+.servicePrice small{font-size:10px;color:#829b88}
+.serviceRequest .serviceAction{width:100%;justify-content:center;min-height:39px;padding:9px 8px}
+.serviceFieldLabel{display:none}
+@media(min-width:721px) and (max-width:1050px){
+ .serviceResultsHeader,.serviceResult{grid-template-columns:minmax(0,2fr) minmax(90px,.8fr) minmax(110px,1fr) minmax(90px,.8fr);gap:10px}
+ .serviceResults{padding:0 10px 6px}
+ .serviceResult{padding:13px 10px}
+ .serviceIdentity>strong{font-size:12px}
+}
+@media(max-width:720px){
+ .serviceResults{padding:0 10px 10px}
+ .serviceResultsHeader{display:none}
+ .serviceResultsBody{gap:10px}
+ .serviceResult{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.7fr);gap:13px 10px;background:#111c14;border:1px solid #2a4331;border-radius:12px;padding:14px}
+ .serviceResult:last-child{border:1px solid #2a4331;border-radius:12px}
+ .serviceIdentity{grid-column:1/-1;border-bottom:1px solid #28402e;padding-bottom:12px}
+ .serviceIdentity>strong{font-size:14px;line-height:1.5}
+ .serviceMeta span{font-size:10px}
+ .serviceTAT{grid-column:1;display:flex;flex-direction:column;align-items:flex-start;gap:7px}
+ .servicePrice{grid-column:2;grid-row:2/4;align-items:flex-end;text-align:right;justify-content:flex-start;gap:6px}
+ .servicePrice strong{font-size:16px}
+ .serviceRequest{grid-column:1;grid-row:3;align-self:end}
+ .serviceRequest .serviceAction{min-height:43px;width:100%}
+ .serviceFieldLabel{display:block;font-size:10px;color:#91a998;font-weight:700;letter-spacing:.3px}
+ .tatBadge{font-size:10px;padding:7px 9px}
+ .catalogTable tr{background:#111c14;border-color:#2a4331}
+}
+@media(max-width:360px){
+ .serviceResult{grid-template-columns:minmax(0,1fr) minmax(94px,.8fr);padding:12px}
+ .servicePrice strong{font-size:14px}
+}
