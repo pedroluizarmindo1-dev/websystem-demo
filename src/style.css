@@ -383,3 +383,47 @@ table td{border-color:#283b2d}
  .serviceResult{grid-template-columns:minmax(0,1fr) minmax(94px,.8fr);padding:12px}
  .servicePrice strong{font-size:14px}
 }
+
+/* Pre-Release 0.1 access screen */
+.loginScreen{min-height:100dvh;padding:clamp(18px,4vw,60px);background:radial-gradient(ellipse at 18% 15%,#173321 0%,#080d09 48%,#060907 100%);display:grid;place-items:center}
+.loginLayout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(340px,420px);align-items:center;gap:clamp(30px,7vw,100px);width:min(1040px,100%)}
+.loginIntro{min-width:0}
+.loginBrand{display:flex;align-items:center;gap:13px;margin-bottom:75px}
+.loginBrandIcon{display:grid;place-items:center;width:49px;height:49px;background:#255e37;color:#e5f8e9;border-radius:14px;font-weight:900;font-size:24px}
+.loginBrandIcon span{color:#a5d8b1}
+.loginBrand strong{display:block;letter-spacing:1px;font-size:18px}
+.loginBrand small{display:block;color:#9bb6a2;letter-spacing:2px;font-size:10px;margin-top:4px}
+.releasePill{display:inline-flex;border:1px solid #396245;background:#1b3624;color:#b6e6c0;padding:8px 11px;border-radius:100px;font-size:10px;font-weight:800;letter-spacing:1.2px}
+.loginIntro h1{font-size:clamp(32px,4vw,54px);letter-spacing:-1.8px;line-height:1.12;max-width:540px;margin:20px 0 16px}
+.loginIntro>p{font-size:15px;color:#a4b7a9;line-height:1.75;max-width:430px}
+.loginFeatures{display:flex;flex-direction:column;gap:14px;margin-top:38px;color:#c3d5c7;font-size:12px}
+.loginFeatures span{display:flex;align-items:center;gap:11px}
+.loginFeatures svg{color:#8ac697}
+.loginCard{background:#111b14;border:1px solid #31503a;box-shadow:0 25px 80px #0007;padding:34px;border-radius:18px;width:100%;gap:11px}
+.loginCardTop{margin-bottom:14px}
+.loginCardEyebrow{color:#92c99c;font-size:10px;font-weight:800;letter-spacing:1.3px}
+.loginCard h2{font-size:27px;letter-spacing:-.7px;margin:10px 0}
+.loginCard p{font-size:12px;color:#9fb2a4;margin:0;line-height:1.6}
+.loginCard label{font-size:12px;color:#c0d3c4;font-weight:700}
+.loginCard input{width:100%;min-width:0;background:#0b130e;border:1px solid #35503b;color:#eff7f0;padding:13px 14px;font-size:16px}
+.loginCard input:focus{outline:2px solid #5b9b69;outline-offset:1px}
+.loginPasswordLabel{margin-top:8px}
+.loginPasswordField{position:relative;display:flex;align-items:center}
+.loginPasswordField input{padding-right:84px}
+.loginPasswordField button{position:absolute;right:7px;top:50%;transform:translateY(-50%);border:0;background:#1b3322;color:#c4e5ca;border-radius:6px;padding:7px 9px;font-size:11px}
+.loginSubmit{display:flex;align-items:center;gap:8px;width:100%;min-height:48px;margin-top:16px;font-size:13px}
+.loginSubmit:disabled{opacity:.65;cursor:wait}
+.loginFooter{border-top:1px solid #2b4030;margin-top:13px;padding-top:18px;text-align:center;color:#819a87;font-size:11px}
+@media(max-width:760px){
+ .loginScreen{padding:25px 17px;align-items:start}
+ .loginLayout{grid-template-columns:1fr;gap:24px;max-width:450px}
+ .loginBrand{margin-bottom:27px}
+ .loginBrandIcon{width:41px;height:41px;font-size:20px}
+ .loginBrand strong{font-size:15px}
+ .loginIntro h1{font-size:30px;letter-spacing:-1px;margin:15px 0 10px}
+ .loginIntro>p{font-size:12px;line-height:1.6}
+ .loginFeatures{display:none}
+ .loginCard{padding:23px 20px;border-radius:15px}
+ .loginCard h2{font-size:24px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
