@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import {getAnnouncements} from './telegram-announcements.mjs';
 import {verify,issue,getSession,revoke} from './auth.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -24,6 +25,7 @@ app.post('/api/auth/logout',(req,res)=>{revoke(cookies(req).ws_session);res.setH
 app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools'}));
 // All application data requires login, including catalog and prices.
 app.use('/api',guard);
+app.get('/api/telegram/announcements',async(req,res)=>{try{res.json(await getAnnouncements())}catch(e){res.status(502).json({error:'Não foi possível consultar anúncios do Telegram'})}});
 const audit=(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail);
 app.get('/api/services',wrap((req,res)=>{const search=String(req.query.q||'').slice(0,100);res.json(all('SELECT * FROM services WHERE name LIKE ? OR category LIKE ? OR brand LIKE ? OR model LIKE ? ORDER BY id DESC LIMIT 1500',...Array(4).fill('%'+search+'%')))}));
 app.post('/api/services',guard,wrap((req,res)=>{const s=req.body;if(!s.name||!s.category||!Number.isFinite(Number(s.price_usd))||Number(s.price_usd)<0)throw Error('Serviço inválido');const r=run('INSERT INTO services(external_id,source,name,category,brand,model,price_usd,available,eta) VALUES (?,?,?,?,?,?,?,?,?)',s.external_id||null,s.source||'manual',s.name,s.category,s.brand||'',s.model||'',Number(s.price_usd),s.available===false?0:1,s.eta||'');audit('services',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
