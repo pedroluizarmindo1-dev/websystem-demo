@@ -1,0 +1,30 @@
+name: Web Inspector
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '15 12 * * *'
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install inspector dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check build
+        run: npm run build
+      - name: Inspect published web app
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          WEB_INSPECT_URL: https://websystem-unlocker-demo.onrender.com
+        run: |
+          if [ ! -x "$CHROME_PATH" ]; then
+            CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+            export CHROME_PATH
+          fi
+          npm run inspect:web
