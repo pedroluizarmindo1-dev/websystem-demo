@@ -69,7 +69,7 @@ export async function syncEntireCatalog(db,{maxPages=200}={}){
    state.pages++;state.posts+=result.posts;
    for(const item of result.items){
     const key=item.alias.toLowerCase();
-    if(!latest.has(key)||item.post_id>latest.get(key).post_id)latest.set(key,item);
+    if(!latest.has(key))latest.set(key,item);
    }
    // Incrementally save so partial progress remains useful if Telegram rate limits.
    for(const item of result.items){
