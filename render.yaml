@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: websystem-unlocker-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.demo
+    healthCheckPath: /api/health
+    envVars:
+      - key: DEMO_MODE
+        value: 'true'
+      - key: DEMO_USERNAME
+        value: demo
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: COOKIE_SECURE
+        value: 'true'
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
