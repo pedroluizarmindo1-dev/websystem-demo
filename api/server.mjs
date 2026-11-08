@@ -1,3 +1,4 @@
+import {randomBytes,createHash} from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import {mountCommerce} from './commerce.mjs';
@@ -27,6 +28,20 @@ app.post('/api/auth/logout',(req,res)=>{revoke(cookies(req).ws_session);res.setH
 app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools'}));
 // Token-protected reseller endpoints are mounted before the browser session guard.
 mountCommerce(app,db,{sessionGuard:guard,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
+// Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
+const publicLookupAttempts=new Map();
+app.post('/api/public/order-lookup',(req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  const ip=req.ip||'unknown',now=Date.now(),entry=publicLookupAttempts.get(ip)||{count:0,until:0};
+  if(entry.until>now)return res.status(429).json({error:'Limite de consultas atingido. Tente novamente mais tarde.'});
+  const id=Number(req.body?.id),token=String(req.body?.token||'');
+  if(!Number.isSafeInteger(id)||id<=0||!/^[a-f0-9]{64}$/.test(token))return res.status(400).json({error:'Código de consulta inválido'});
+  const hash=createHash('sha256').update(token).digest('hex');
+  const record=get('SELECT o.id,o.device_brand,o.device_model,o.status,o.created_at,o.updated_at FROM orders o JOIN order_public_links l ON l.order_id=o.id WHERE o.id=? AND l.token_hash=?',id,hash);
+  if(!record){entry.count++;if(entry.count>=12){entry.until=now+15*60*1000;entry.count=0}publicLookupAttempts.set(ip,entry);return res.status(404).json({error:'Ordem não encontrada ou acesso inválido'})}
+  publicLookupAttempts.delete(ip);
+  res.json({order_number:String(record.id).padStart(4,'0'),device_brand:record.device_brand||'',device_model:record.device_model,status:record.status,created_at:record.created_at,updated_at:record.updated_at});
+});
 // All application data requires login, including catalog and prices.
 app.use('/api',guard);
 app.get('/api/telegram/announcements',async(req,res)=>{try{res.json(await getAnnouncements())}catch(e){res.status(502).json({error:'Não foi possível consultar anúncios do Telegram'})}});
@@ -38,6 +53,16 @@ app.post('/api/services',guard,wrap((req,res)=>{const s=req.body;if(!s.name||!s.
 app.get('/api/exchange-rates',wrap((req,res)=>res.json({latest:get('SELECT * FROM exchange_rates ORDER BY id DESC LIMIT 1')||null,settings:config()})));
 app.get('/api/convert',wrap((req,res)=>{const x=get('SELECT * FROM exchange_rates ORDER BY id DESC LIMIT 1');if(!x)return res.status(503).json({error:'Cotação ainda não disponível'});const usd=Number(req.query.usd);if(!Number.isFinite(usd)||usd<0)throw Error('Valor USD inválido');const c=config();res.json({usd,rate:x.rate,brl:quote(usd,x.rate,c.margin_percent,c.spread_brl),...c,updated_at:x.updated_at})}));
 app.put('/api/settings',guard,wrap((req,res)=>{for(const k of ['margin_percent','spread_brl'])if(req.body[k]!==undefined){const v=Number(req.body[k]);if(!Number.isFinite(v)||v<0||v>10000)throw Error('Configuração inválida');run('UPDATE settings SET value=? WHERE key=?',String(v),k)}res.json(config())}));
+app.post('/api/orders/:id/public-link',guard,wrap((req,res)=>{
+  const id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<=0||!get('SELECT id FROM orders WHERE id=?',id))return res.status(404).json({error:'Ordem não encontrada'});
+  const token=randomBytes(32).toString('hex');
+  const hash=createHash('sha256').update(token).digest('hex');
+  run('INSERT INTO order_public_links(order_id,token_hash) VALUES (?,?) ON CONFLICT(order_id) DO UPDATE SET token_hash=excluded.token_hash,created_at=CURRENT_TIMESTAMP',id,hash);
+  run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)','orders',id,'public_link_rotated','New customer tracking link');
+  res.setHeader('Cache-Control','no-store');
+  res.json({url:'/consulta.html#'+id+'.'+token});
+}));
 app.get('/api/orders',guard,wrap((req,res)=>res.json(all('SELECT * FROM orders ORDER BY id DESC LIMIT 200'))));
 app.post('/api/orders',guard,wrap((req,res)=>{const s=req.body;if(!s.customer_name||!s.device_model)throw Error('Cliente e modelo obrigatórios');const r=run('INSERT INTO orders(customer_name,customer_contact,device_brand,device_model,service_id,price_brl,anydesk_id,payment_status) VALUES (?,?,?,?,?,?,?,?)',s.customer_name,s.customer_contact||'',s.device_brand||'',s.device_model,s.service_id||null,Number(s.price_brl)||0,s.anydesk_id||'',s.payment_status||'pendente');audit('orders',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
 app.patch('/api/orders/:id',guard,wrap((req,res)=>{const allowed=['pendente','em_processamento','concluido','entregue','rejeitado','reembolsado'];if(!allowed.includes(req.body.status))throw Error('Status inválido');const r=run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,Number(req.params.id));if(!r.changes)return res.sendStatus(404);audit('orders',Number(req.params.id),'status',req.body.status);res.json({ok:true})}));
