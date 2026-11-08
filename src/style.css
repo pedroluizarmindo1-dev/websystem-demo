@@ -148,3 +148,16 @@ header{position:sticky;top:0;z-index:25;background:#0e141e;backdrop-filter:blur(
  .walletBalance strong{font-size:12px}
  .depositTop{padding:8px;font-size:10px}
 }
+
+.toolSection{padding:20px 22px;border-bottom:1px solid #2b3743}
+.toolSectionTitle{display:flex;justify-content:space-between;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:15px}
+.toolSectionTitle h2{font-size:17px}.toolSectionTitle p{font-size:11px;color:#8799a8;margin:0}
+.toolGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.toolCard{min-width:0;background:#17232f;border:1px solid #30414c;border-radius:12px;padding:17px;display:flex;flex-direction:column;gap:11px}
+.toolIcon{width:43px;height:43px;border-radius:11px;background:#30442e;color:#d6f467;font-weight:800;display:grid;place-items:center}
+.toolCard h3{font-size:13px;line-height:1.45;overflow-wrap:anywhere;margin:0;color:#eef5fa}
+.toolCard p{color:#9aabba;font-size:11px;margin:0;line-height:1.5}
+.toolCard>strong{font-size:18px;color:#d6f467;margin-top:auto}
+.toolCard .serviceAction{justify-content:center}
+@media(max-width:1100px){.toolGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.toolSection{padding:16px 12px}.toolGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.toolCard{padding:12px;gap:9px}.toolCard>strong{font-size:15px}.toolCard .serviceAction{font-size:11px;padding:9px 6px;white-space:normal;text-align:center}}
