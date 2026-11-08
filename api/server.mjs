@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import {mountCommerce} from './commerce.mjs';
 import {getAnnouncements} from './telegram-announcements.mjs';
 import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
 import {verify,issue,getSession,revoke} from './auth.mjs';
@@ -24,6 +25,8 @@ app.get('/api/auth/me',(req,res)=>{const user=session(req);if(!user)return res.s
 app.post('/api/auth/logout',(req,res)=>{revoke(cookies(req).ws_session);res.setHeader('Set-Cookie','ws_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');res.json({ok:true})});
 // Public health endpoint contains no private data.
 app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools'}));
+// Token-protected reseller endpoints are mounted before the browser session guard.
+mountCommerce(app,db,{sessionGuard:guard,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // All application data requires login, including catalog and prices.
 app.use('/api',guard);
 app.get('/api/telegram/announcements',async(req,res)=>{try{res.json(await getAnnouncements())}catch(e){res.status(502).json({error:'Não foi possível consultar anúncios do Telegram'})}});
@@ -37,7 +40,7 @@ app.get('/api/convert',wrap((req,res)=>{const x=get('SELECT * FROM exchange_rate
 app.put('/api/settings',guard,wrap((req,res)=>{for(const k of ['margin_percent','spread_brl'])if(req.body[k]!==undefined){const v=Number(req.body[k]);if(!Number.isFinite(v)||v<0||v>10000)throw Error('Configuração inválida');run('UPDATE settings SET value=? WHERE key=?',String(v),k)}res.json(config())}));
 app.get('/api/orders',guard,wrap((req,res)=>res.json(all('SELECT * FROM orders ORDER BY id DESC LIMIT 200'))));
 app.post('/api/orders',guard,wrap((req,res)=>{const s=req.body;if(!s.customer_name||!s.device_model)throw Error('Cliente e modelo obrigatórios');const r=run('INSERT INTO orders(customer_name,customer_contact,device_brand,device_model,service_id,price_brl,anydesk_id,payment_status) VALUES (?,?,?,?,?,?,?,?)',s.customer_name,s.customer_contact||'',s.device_brand||'',s.device_model,s.service_id||null,Number(s.price_brl)||0,s.anydesk_id||'',s.payment_status||'pendente');audit('orders',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
-app.patch('/api/orders/:id',guard,wrap((req,res)=>{const allowed=['pendente','em_processamento','concluido','entregue'];if(!allowed.includes(req.body.status))throw Error('Status inválido');const r=run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,Number(req.params.id));if(!r.changes)return res.sendStatus(404);audit('orders',Number(req.params.id),'status',req.body.status);res.json({ok:true})}));
+app.patch('/api/orders/:id',guard,wrap((req,res)=>{const allowed=['pendente','em_processamento','concluido','entregue','rejeitado','reembolsado'];if(!allowed.includes(req.body.status))throw Error('Status inválido');const r=run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,Number(req.params.id));if(!r.changes)return res.sendStatus(404);audit('orders',Number(req.params.id),'status',req.body.status);res.json({ok:true})}));
 app.get('/api/remote-sessions',guard,wrap((req,res)=>res.json(all('SELECT * FROM remote_sessions ORDER BY id DESC LIMIT 200'))));
 app.post('/api/remote-sessions',guard,wrap((req,res)=>{const s=req.body;if(!get('SELECT id FROM orders WHERE id=?',Number(s.order_id))||!s.anydesk_id)throw Error('O.S. e ID AnyDesk obrigatórios');const r=run('INSERT INTO remote_sessions(order_id,anydesk_id,scheduled_at) VALUES (?,?,?)',Number(s.order_id),s.anydesk_id,s.scheduled_at||null);audit('remote_sessions',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
 app.patch('/api/remote-sessions/:id',guard,wrap((req,res)=>{const allowed=['aguardando_conexao','conectado','aguardando_reinicio','concluido','falha','cancelado'];if(!allowed.includes(req.body.status))throw Error('Status inválido');const r=run('UPDATE remote_sessions SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,Number(req.params.id));if(!r.changes)return res.sendStatus(404);audit('remote_sessions',Number(req.params.id),'status',req.body.status);res.json({ok:true})}));
