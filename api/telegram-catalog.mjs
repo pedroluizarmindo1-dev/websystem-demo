@@ -67,7 +67,7 @@ export async function syncEntireCatalog(db,{maxPages=200}={}){
    const result=await fetchPage(before);
    if(!result.oldest||!result.posts)break;
    state.pages++;state.posts+=result.posts;
-   for(const item of result.items){
+   for(const item of [...result.items].reverse()){
     const key=item.alias.toLowerCase();
     if(!latest.has(key))latest.set(key,item);
    }
