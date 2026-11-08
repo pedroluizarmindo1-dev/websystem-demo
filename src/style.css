@@ -23,3 +23,19 @@
 .pricingForm input{background:#0c141d;border:1px solid #303d4d;border-radius:8px;color:#e8edf5;padding:12px;min-width:0}
 .pricingForm button{grid-column:1/-1}
 @media(max-width:720px){.pricingForm{grid-template-columns:1fr}.servicePagination{padding:14px}.servicePagination button{padding:9px}}
+
+.globalSearch{display:flex;align-items:center;gap:12px;padding:15px 18px;background:#182431;border:1px solid #3b5040;border-radius:12px;margin-bottom:22px;color:#c3eb82}
+.globalSearch input{flex:1;min-width:0;background:transparent;color:#f3f7fb;border:0;outline:0;font-size:15px}
+.campaignBar{display:flex;gap:12px;overflow-x:auto;margin-bottom:18px}
+.campaignBar>div{min-width:250px;flex:1;border:1px solid #40563b;background:linear-gradient(115deg,#223628,#17222b);border-radius:12px;padding:18px}
+.campaignBar strong{color:#e0f5b6}.campaignBar p{color:#b5c4d1;font-size:12px}.campaignBar a{color:#c9ed8c;font-size:12px}
+.commerceForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:22px}
+.commerceForm input,.commerceForm select,.commerceForm textarea{width:100%;min-width:0;background:#0d151e;border:1px solid #354251;border-radius:8px;color:#e8edf5;padding:13px;font:inherit}
+.commerceForm textarea{min-height:95px;grid-column:1/-1}.commerceForm button{grid-column:1/-1}
+.commerceHint{padding:12px 22px;color:#aab9c8;font-size:12px;line-height:1.7}
+.tokenBox{margin:0 22px;padding:16px;border:1px solid #6b8353;border-radius:9px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;color:#e4f8cb}
+.tokenBox code{overflow-wrap:anywhere;color:#c9ed8c}
+.floatingSupport{position:fixed;right:20px;bottom:20px;display:flex;gap:9px;z-index:30}
+.floatingSupport a,.floatingSupport button{background:#d6f467;border:0;color:#14200d;text-decoration:none;font-size:12px;font-weight:800;padding:12px 16px;border-radius:24px;box-shadow:0 5px 24px #0008;cursor:pointer}
+.floatingSupport a{background:#243847;color:#e2f3fc;border:1px solid #47677d}
+@media(max-width:720px){.globalSearch{flex-wrap:wrap}.globalSearch button{width:100%}.commerceForm{grid-template-columns:1fr}.floatingSupport{right:10px;bottom:10px}.floatingSupport a,.floatingSupport button{padding:10px}}
