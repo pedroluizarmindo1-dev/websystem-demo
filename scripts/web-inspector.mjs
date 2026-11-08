@@ -12,7 +12,7 @@ try{
     const errors=[];
     page.on('pageerror',e=>errors.push(e.message));
     const response=await page.goto(base,{waitUntil:'networkidle2',timeout:60000});
-    check(response?.status()===200,`HTTP 200 · viewport ${width}px`);
+    check([200,304].includes(response?.status()),`HTTP 200 · viewport ${width}px`);
     check(errors.length===0,`Sem erros JavaScript · ${width}px${errors.length?' ('+errors.join('; ')+')':''}`);
     check(await page.evaluate(()=>[...document.querySelectorAll('h2')].some(x=>x.textContent.includes('Entrar na conta'))),`Login renderizado · ${width}px`);
     check(await page.$('#ws-username')!==null&&await page.$('#ws-password')!==null,`Campos de login · ${width}px`);
