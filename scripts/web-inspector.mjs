@@ -14,12 +14,12 @@ try{
     const response=await page.goto(base,{waitUntil:'networkidle2',timeout:60000});
     check(response?.status()===200,`HTTP 200 · viewport ${width}px`);
     check(errors.length===0,`Sem erros JavaScript · ${width}px${errors.length?' ('+errors.join('; ')+')':''}`);
-    check(await page.locator('h2').filter({hasText:'Entrar na conta'}).count()===1,`Login renderizado · ${width}px`);
-    check(await page.locator('#ws-username').count()===1&&await page.locator('#ws-password').count()===1,`Campos de login · ${width}px`);
+    check(await page.evaluate(()=>[...document.querySelectorAll('h2')].some(x=>x.textContent.includes('Entrar na conta'))),`Login renderizado · ${width}px`);
+    check(await page.$('#ws-username')!==null&&await page.$('#ws-password')!==null,`Campos de login · ${width}px`);
     check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),`Sem overflow horizontal · ${width}px`);
     if(width===390){
-      await page.getByRole('button',{name:'Mostrar senha'}).click();
-      check(await page.locator('#ws-password').getAttribute('type')==='text','Alternar visibilidade da senha');
+      await page.evaluate(()=>document.querySelector('button[aria-label="Mostrar senha"]')?.click());
+      check(await page.$eval('#ws-password',e=>e.type)==='text','Alternar visibilidade da senha');
     }
     await page.close();
   }
