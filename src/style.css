@@ -10,3 +10,16 @@
 .serviceCategories button.selected{border-color:#b7db67;background:#293c28;color:#d6f467}
 .serviceSub{display:block;color:#8393a4;font-size:10px;margin-top:6px}
 @media(max-width:720px){.serviceHero{padding:22px 16px}.serviceHero h2{font-size:19px}.serviceHeroCount{min-width:76px}.serviceHeroCount strong{font-size:25px}.serviceCategories{flex-wrap:nowrap;overflow-x:auto;padding:12px}.serviceCategories button{white-space:nowrap}}
+
+/* WebSystem GSM marketplace interactions */
+.serviceAction{display:inline-flex;align-items:center;gap:6px;border:1px solid #a3c765;background:#2b402a;color:#dcf7aa;padding:9px 13px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap}
+.serviceAction:hover{background:#395435}
+.servicePagination{padding:17px 23px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid #25303d;color:#9eacbc;font-size:12px}
+.servicePagination>div{display:flex;gap:8px}.servicePagination button{border:1px solid #354150;background:#182431;color:#d6e0ea;padding:9px 13px;border-radius:7px}.servicePagination button:disabled{opacity:.35;cursor:not-allowed}
+.serviceOrderNotice{margin:20px 20px 0;border:1px solid #486039;background:#1b2d23;color:#e1f3c9;border-radius:9px;padding:15px;font-size:13px}
+.serviceOrderNotice span{display:block;color:#b8c5ac;margin-top:7px}
+.pricingForm{margin:22px 24px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pricingForm label{display:grid;gap:8px;color:#a7b4c4;font-size:12px}
+.pricingForm input{background:#0c141d;border:1px solid #303d4d;border-radius:8px;color:#e8edf5;padding:12px;min-width:0}
+.pricingForm button{grid-column:1/-1}
+@media(max-width:720px){.pricingForm{grid-template-columns:1fr}.servicePagination{padding:14px}.servicePagination button{padding:9px}}
