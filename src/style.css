@@ -427,3 +427,19 @@ table td{border-color:#283b2d}
  .loginCard h2{font-size:24px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* UNLOCKER TOOLS identity — Old Money & Tech */
+.loginBrandLogo,.brandLogo{display:block;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 3px 12px #0008)}
+.loginBrandLogo{width:62px;height:62px}
+.brandLogo{width:45px;height:45px}
+.loginBrand strong,.brand strong{font-family:Georgia,'Times New Roman',serif;font-size:21px;letter-spacing:2px;color:#e8cb87;font-weight:700}
+.loginBrand small,.brand small{font-family:inherit;letter-spacing:2.4px;color:#a8b9a6;font-size:9px}
+.loginBrand{gap:14px}
+.brand{gap:11px}
+.loginIntro h1{color:#f3f3eb}
+.loginCardEyebrow,.releasePill{color:#d8bd7e}
+.releasePill{border-color:#685833;background:#2b291c}
+.loginCard{border-color:#46513a}
+.loginSubmit{background:#255c36;border-color:#3b7950}
+.loginSubmit:hover{background:#326c44}
+@media(max-width:760px){.loginBrandLogo{width:50px;height:50px}.loginBrand strong{font-size:18px}.brandLogo{width:40px;height:40px}}
