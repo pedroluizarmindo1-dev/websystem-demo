@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import {getAnnouncements} from './telegram-announcements.mjs';
-import {syncTelegramServices} from './telegram-sync.mjs';
+import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
 import {verify,issue,getSession,revoke} from './auth.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -27,7 +27,8 @@ app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools
 // All application data requires login, including catalog and prices.
 app.use('/api',guard);
 app.get('/api/telegram/announcements',async(req,res)=>{try{res.json(await getAnnouncements())}catch(e){res.status(502).json({error:'Não foi possível consultar anúncios do Telegram'})}});
-app.post('/api/telegram/sync',async(req,res)=>{try{res.json(await syncTelegramServices(db))}catch(e){console.error('Telegram sync failed:',e.message);res.status(502).json({error:'Não foi possível sincronizar o Telegram'})}});
+app.get('/api/telegram/catalog-status',(req,res)=>res.json(getCatalogSyncStatus()));
+app.post('/api/telegram/sync',(req,res)=>{if(!getCatalogSyncStatus().running)syncEntireCatalog(db).catch(e=>console.error('Telegram import:',e.message));res.status(202).json({started:true,status:getCatalogSyncStatus()})});
 const audit=(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail);
 app.get('/api/services',wrap((req,res)=>{const search=String(req.query.q||'').slice(0,100);res.json(all('SELECT * FROM services WHERE name LIKE ? OR category LIKE ? OR brand LIKE ? OR model LIKE ? ORDER BY id DESC LIMIT 1500',...Array(4).fill('%'+search+'%')))}));
 app.post('/api/services',guard,wrap((req,res)=>{const s=req.body;if(!s.name||!s.category||!Number.isFinite(Number(s.price_usd))||Number(s.price_usd)<0)throw Error('Serviço inválido');const r=run('INSERT INTO services(external_id,source,name,category,brand,model,price_usd,available,eta) VALUES (?,?,?,?,?,?,?,?,?)',s.external_id||null,s.source||'manual',s.name,s.category,s.brand||'',s.model||'',Number(s.price_usd),s.available===false?0:1,s.eta||'');audit('services',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
@@ -46,8 +47,9 @@ app.get('/api/audit-logs',guard,wrap((req,res)=>res.json(all('SELECT * FROM audi
 async function refreshRate(){for(const provider of ['AwesomeAPI','Frankfurter']){try{let rate;if(provider==='AwesomeAPI'){const r=await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL',{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();rate=Number(data.USDBRL?.bid)}else{const r=await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=BRL',{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();rate=Number(data.rates?.BRL)}if(!(rate>0))throw Error('Cotação inválida');run('INSERT INTO exchange_rates(base,quote,rate,provider) VALUES (?,?,?,?)','USD','BRL',rate,provider);console.log('Cotação atualizada:',rate,provider);return}catch(e){console.error(provider+' indisponível:',e.message)}}}
 refreshRate();setInterval(refreshRate,30*60*1000).unref();
 if(process.env.DEMO_MODE==='true'){
-  const sync=()=>syncTelegramServices(db).then(x=>console.log('Telegram catalog synced:',x.imported)).catch(e=>console.error('Telegram catalog sync:',e.message));
-  sync();setInterval(sync,15*60*1000).unref();
+  // Full historical import on demo startup; hourly refresh of new announcements.
+  setTimeout(()=>syncEntireCatalog(db).catch(e=>console.error('Telegram import:',e.message)),2500).unref();
+  setInterval(()=>{if(!getCatalogSyncStatus().running)syncEntireCatalog(db).catch(e=>console.error('Telegram import:',e.message))},60*60*1000).unref();
 }
 const port=Number(process.env.PORT||3100);const host=process.env.HOST||'127.0.0.1';
 const dist=resolve(root,'dist');
