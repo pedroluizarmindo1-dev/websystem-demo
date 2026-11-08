@@ -28,7 +28,7 @@ export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
   const tier=req.reseller.tier,rate=fx(),settings=config();
   if(action==='accountinfo'||action==='balance')return res.json({SUCCESS:[{AccountName:req.reseller.label,Tier:tier,Currency:'BRL',Balance:wallet().balance_brl}]});
   if(action==='imeiservicelist'||action==='servicelist')return res.json({SUCCESS:all('SELECT id,name,category,price_usd,eta,available FROM services ORDER BY id DESC LIMIT 5000').map(s=>({SERVICEID:s.id,SERVICENAME:s.name,CATEGORY:s.category,CREDIT:rate?priceFor(quote(s.price_usd,rate,settings.margin_percent,settings.spread_brl),tier,settings):null,TIME:s.eta||'Consultar',AVAILABLE:!!s.available}))});
-  if(action==='getimeiorder'||action==='orderstatus'){const id=Number(req.body?.id||req.body?.orderid||req.query.id);const o=get('SELECT id,status,created_at FROM orders WHERE id=?',id);return o?res.json({SUCCESS:[{ID:o.id,STATUS:o.status,CREATED:o.created_at}]}):error(res,404,'Pedido não encontrado')}
+  if(action==='getimeiorder'||action==='orderstatus'){const id=Number(req.body?.id||req.body?.orderid||req.query.id);const o=get('SELECT id,status,created_at FROM orders WHERE id=? AND customer_name=?',id,req.reseller.label);return o?res.json({SUCCESS:[{ID:o.id,STATUS:o.status,CREATED:o.created_at}]}):error(res,404,'Pedido não encontrado')}
   if(action==='placeimeiorder'||action==='placeorder'){
    const serviceId=Number(req.body?.serviceid||req.body?.service_id),imei=String(req.body?.imei||req.body?.device_id||'').trim();
    if(!Number.isSafeInteger(serviceId)||!/^[-A-Za-z0-9]{8,40}$/.test(imei))return error(res,400,'Serviço e identificador válidos são obrigatórios');
