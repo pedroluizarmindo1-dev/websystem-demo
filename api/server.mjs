@@ -9,7 +9,9 @@ import {verify,issue,getSession,revoke} from './auth.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-const app=express(); app.use(express.json({limit:'128kb'})); app.use(cors({origin:false}));
+const app=express();app.disable('x-powered-by');
+app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');if(req.path.startsWith('/api/'))res.setHeader('Cache-Control','no-store');next()});
+app.use(express.json({limit:'128kb'}));app.use(cors({origin:false}));
 const root=resolve(import.meta.dirname,'..');mkdirSync(resolve(root,'data'),{recursive:true});
 const db=new DatabaseSync(resolve(root,'data','websystem.sqlite'));
 db.exec(readFileSync(resolve(root,'api/schema.sql'),'utf8'));
@@ -26,7 +28,8 @@ app.post('/api/auth/login',wrap((req,res)=>{const ip=req.ip||'unknown',now=Date.
 app.get('/api/auth/me',(req,res)=>{const user=session(req);if(!user)return res.status(401).json({error:'Login necessário'});res.json(user)});
 app.post('/api/auth/logout',(req,res)=>{revoke(cookies(req).ws_session);res.setHeader('Set-Cookie','ws_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');res.json({ok:true})});
 // Public health endpoint contains no private data.
-app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools'}));
+app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools',version:'1.0.0-rc1'}));
+app.get('/api/readiness',guard,(req,res)=>{if(req.user.role!=='admin')return res.status(403).json({error:'Acesso restrito'});const configured=!!(process.env.IMEIVE_API_URL&&process.env.IMEIVE_API_USERNAME&&process.env.IMEIVE_API_KEY);const count=get("SELECT COUNT(*) AS n FROM services WHERE source='imeive'")?.n||0;res.setHeader('Cache-Control','no-store');res.json({version:'1.0.0-rc1',supplier_credentials_configured:configured,supplier_catalog_count:count,database_persistent:process.env.DATA_DIR?true:false,automatic_fulfillment_enabled:false,production_ready:false})});
 // Token-protected reseller endpoints are mounted before the browser session guard.
 mountCommerce(app,db,{sessionGuard:guard,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
