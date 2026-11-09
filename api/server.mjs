@@ -42,6 +42,26 @@ app.post('/api/public/order-lookup',(req,res)=>{
   publicLookupAttempts.delete(ip);
   res.json({order_number:String(record.id).padStart(4,'0'),device_brand:record.device_brand||'',device_model:record.device_model,status:record.status,created_at:record.created_at,updated_at:record.updated_at});
 });
+// Supplier connection: credentials stay server-side; no order submission or wallet operations.
+app.get('/api/integrations/imeive/status',guard,async(req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  if(req.user.role!=='admin')return res.status(403).json({error:'Acesso restrito'});
+  const endpoint=process.env.IMEIVE_API_URL,username=process.env.IMEIVE_API_USERNAME,key=process.env.IMEIVE_API_KEY;
+  if(!endpoint||!username||!key)return res.status(503).json({connected:false,error:'Integração não configurada'});
+  if(endpoint!=='https://imeiveserver.com/api/index.php')return res.status(503).json({connected:false,error:'Endpoint não autorizado'});
+  try{
+    const form=new URLSearchParams({username,apiaccesskey:key,action:'accountinfo'});
+    const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},body:form,signal:AbortSignal.timeout(12000),redirect:'error'});
+    const body=(await response.text()).slice(0,12000);
+    let data;try{data=JSON.parse(body)}catch{}
+    if(!response.ok)return res.status(502).json({connected:false,error:'Fornecedor respondeu HTTP '+response.status});
+    if(!data)return res.status(502).json({connected:false,error:'Formato de resposta não reconhecido'});
+    const success=Array.isArray(data.SUCCESS)&&data.SUCCESS.length>0;
+    if(!success)return res.status(502).json({connected:false,error:'Fornecedor não confirmou autenticação',provider_code:data.ERROR?.[0]?.MESSAGE||null});
+    const account=data.SUCCESS[0]||{};
+    res.json({connected:true,provider:'IMEI VE Server',account:String(account.AccountName||account.accountname||username),currency:String(account.Currency||account.currency||''),checked_at:new Date().toISOString()});
+  }catch(e){res.status(502).json({connected:false,error:'Falha na comunicação com o fornecedor'})}
+});
 // All application data requires login, including catalog and prices.
 app.use('/api',guard);
 app.get('/api/telegram/announcements',async(req,res)=>{try{res.json(await getAnnouncements())}catch(e){res.status(502).json({error:'Não foi possível consultar anúncios do Telegram'})}});
