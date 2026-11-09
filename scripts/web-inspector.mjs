@@ -28,5 +28,20 @@ try{
   check(health.ok&&((await health.json()).ok===true),'API health');
   const privateResponse=await fetch(base+'/api/orders');
   check(privateResponse.status===401,'API privada bloqueada sem login');
+  const supplier=await fetch(base+'/api/integrations/imeive/status');
+  check(supplier.status===401,'Fornecedor protegido sem login');
+  const readiness=await fetch(base+'/api/readiness');
+  check(readiness.status===401,'Diagnóstico de produção protegido sem login');
+  const publicPage=await browser.newPage();
+  await publicPage.setViewport({width:390,height:844});
+  const publicErrors=[];publicPage.on('pageerror',e=>publicErrors.push(e.message));
+  const publicResponse=await publicPage.goto(base+'/consulta.html',{waitUntil:'networkidle2',timeout:60000});
+  check(publicResponse?.status()===200,'Consulta pública HTTP 200');
+  check(await publicPage.$('#code')!==null,'Consulta pública possui código de acesso');
+  check(await publicPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Consulta pública responsiva');
+  check(publicErrors.length===0,'Consulta pública sem erros JavaScript');
+  await publicPage.close();
+  const invalid=await fetch(base+'/api/public/order-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:1,token:'0'.repeat(64)})});
+  check(invalid.status===404||invalid.status===429,'Consulta pública rejeita token não autorizado');
 }finally{await browser.close()}
 if(failures.length){console.error('Web Inspector: '+failures.length+' falha(s)');process.exitCode=1}else console.log('Web Inspector: verificações concluídas com sucesso');
