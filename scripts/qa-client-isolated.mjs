@@ -18,7 +18,7 @@ try{
  db.exec('PRAGMA busy_timeout=15000');
  // Client schema is created by server on startup; seed after startup.
  const port=String(36000+Math.floor(Math.random()*1000)),origin='https://unlockertools.tech',base='http://127.0.0.1:'+port;
- child=spawn(process.execPath,[join(dir,'api/server.mjs')],{cwd:dir,env:{...process.env,HOST:'127.0.0.1',PORT:port,APP_ORIGIN:origin,WALLET_REQUESTS_ENABLED:'false'},stdio:'pipe'});
+ child=spawn(process.execPath,[join(dir,'api/server.mjs')],{cwd:dir,env:{...process.env,HOST:'127.0.0.1',PORT:port,APP_ORIGIN:origin,ADMIN_ALLOWED_IPS:'127.0.0.1',WALLET_REQUESTS_ENABLED:'false'},stdio:'pipe'});
  let ready=false;
  for(let i=0;i<45;i++){try{if((await fetch(base+'/api/health',{signal:AbortSignal.timeout(500)})).ok){ready=true;break}}catch{}await delay(250)}
  assert(ready,'API failed to start');
@@ -50,3 +50,4 @@ try{
  r=await request('/me',{cookie:a.cookie});assert(r.status===401,'Session not revoked on logout');
  console.log('CLIENT_ISOLATION_PASS: login, orders, cross-account access, tickets, logout');
 }finally{if(child){child.kill('SIGTERM');await delay(150)}rmSync(dir,{recursive:true,force:true})}
+[exit status 0]
