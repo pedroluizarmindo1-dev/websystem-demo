@@ -15,13 +15,13 @@ try{
   console.log(path,r.status);
  }
  // Ensure private client and administrative resources reject unauthenticated users.
- for(const path of ['/api/auth/me','/api/client/me','/api/client/orders','/api/client/tickets','/api/admin/client-area/mail/status']){
+ for(const path of ['/api/auth/me','/api/client/me','/api/client/orders','/api/client/tickets','/api/admin/client-area/mail/status','/api/security/events','/api/orders','/api/remote-sessions','/api/audit-logs']){
   const r=await fetch(base+path,{signal:AbortSignal.timeout(3000)});
   if(r.status!==401)throw Error(path+' must reject unauthenticated requests, got '+r.status);
   console.log('AUTH_REQUIRED',path,r.status);
  }
  // Origin/CSRF guard must reject state-changing requests without a trusted Origin.
- for(const path of ['/api/auth/login','/api/client/login','/api/client/tickets','/api/client/wallet/deposits']){
+ for(const path of ['/api/auth/login','/api/client/login','/api/client/tickets','/api/client/wallet/deposits','/api/telegram/sync']){
   const r=await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(3000)});
   if(r.status!==403)throw Error(path+' missing Origin must be rejected, got '+r.status);
   console.log('ORIGIN_REQUIRED',path,r.status);
