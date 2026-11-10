@@ -1,0 +1,73 @@
+name: WebSystem isolated Docker staging verification
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  docker-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/client-build-2026-11-10
+      - name: Build production Docker image
+        run: docker build -t websystem-staging:release .
+      - name: Start isolated application with disposable SQLite volume
+        run: |
+          set -euo pipefail
+          docker volume create websystem-staging-test
+          docker run -d --name websystem-staging-test --network bridge \
+            -e NODE_ENV=production -e PORT=3100 -e HOST=0.0.0.0 \
+            -e DEMO_MODE=false -e WALLET_REQUESTS_ENABLED=false \
+            -e DATA_DIR=/app/data -v websystem-staging-test:/app/data \
+            websystem-staging:release
+          for i in $(seq 1 30); do
+            if docker exec websystem-staging-test node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then exit 0; fi
+            sleep 2
+          done
+          docker logs websystem-staging-test
+          exit 1
+      - name: Verify authenticated endpoints and wallet gate
+        run: |
+          set -euo pipefail
+          docker exec websystem-staging-test node --input-type=module -e '
+          for (const [path,expected] of [["/",200],["/services",200],["/client/",200],["/admin/",200],["/api/health",200],["/api/client/wallet",401],["/api/admin/wallet/deposits",401]]) {
+            const r=await fetch("http://127.0.0.1:3100"+path);
+            if(r.status!==expected)throw Error(path+" returned "+r.status+" expected "+expected);
+            console.log("ROUTE_OK",path,r.status);
+          }
+          if(process.env.WALLET_REQUESTS_ENABLED!=="false")throw Error("Wallet feature gate not disabled");
+          '
+      - name: Simulate container failure and restart with persistent isolated data
+        run: |
+          set -euo pipefail
+          docker exec websystem-staging-test node --input-type=module -e '
+          import {writeFileSync} from "node:fs";
+          writeFileSync("/app/data/staging-persistence-probe","persistent");
+          '
+          docker rm -f websystem-staging-test
+          docker run -d --name websystem-staging-test --network bridge \
+            -e NODE_ENV=production -e PORT=3100 -e HOST=0.0.0.0 \
+            -e DEMO_MODE=false -e WALLET_REQUESTS_ENABLED=false \
+            -e DATA_DIR=/app/data -v websystem-staging-test:/app/data \
+            websystem-staging:release
+          for i in $(seq 1 30); do
+            if docker exec websystem-staging-test node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then break; fi
+            sleep 2
+          done
+          docker exec websystem-staging-test node --input-type=module -e '
+          import {readFileSync} from "node:fs";
+          if(readFileSync("/app/data/staging-persistence-probe","utf8")!=="persistent")throw Error("Volume persistence failed");
+          const r=await fetch("http://127.0.0.1:3100/api/health");
+          if(!r.ok)throw Error("Restart health check failed");
+          console.log("STAGING_RESTART_AND_PERSISTENCE_OK");
+          '
+      - name: Collect container logs on failure
+        if: failure()
+        run: docker logs websystem-staging-test || true
+      - name: Remove disposable staging resources
+        if: always()
+        run: |
+          docker rm -f websystem-staging-test 2>/dev/null || true
+          docker volume rm -f websystem-staging-test 2>/dev/null || true
