@@ -17,7 +17,7 @@ try{
  const h=hashPassword('isolated-test-password-1234');
  const u=authdb.prepare('INSERT INTO users(username,password_salt,password_hash,role) VALUES (?,?,?,?)').run('qa-nonadmin',h.salt,h.hash,'viewer');
  const token=issue({id:Number(u.lastInsertRowid)});
- child=spawn(process.execPath,[join(temp,'api/server.mjs')],{cwd:temp,env:{...process.env,PORT:port,HOST:'127.0.0.1',APP_ORIGIN:'https://unlockertools.tech',WALLET_REQUESTS_ENABLED:'false'},stdio:'pipe'});
+ child=spawn(process.execPath,[join(temp,'api/server.mjs')],{cwd:temp,env:{...process.env,PORT:port,HOST:'127.0.0.1',APP_ORIGIN:'https://unlockertools.tech',ADMIN_ALLOWED_IPS:'127.0.0.1',WALLET_REQUESTS_ENABLED:'false'},stdio:'pipe'});
  const base='http://127.0.0.1:'+port;
  let ready=false;
  for(let i=0;i<40;i++){try{if((await fetch(base+'/api/health',{signal:AbortSignal.timeout(500)})).ok){ready=true;break}}catch{}await delay(250)}
@@ -35,3 +35,4 @@ try{
  }
  console.log('RBAC_ISOLATED_PASS');
 }finally{if(child){child.kill('SIGTERM');await delay(150)}rmSync(temp,{recursive:true,force:true})}
+[exit status 0]
