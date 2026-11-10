@@ -30,4 +30,3 @@ services:
       start_period: 30s
 volumes:
   websystem_data:
-[exit status 0]
