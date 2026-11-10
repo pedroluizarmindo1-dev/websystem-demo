@@ -41,7 +41,7 @@ try{
   check(await publicPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Consulta pública responsiva');
   check(publicErrors.length===0,'Consulta pública sem erros JavaScript');
   await publicPage.close();
-  const invalid=await fetch(base+'/api/public/order-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:1,token:'0'.repeat(64)})});
+  const invalid=await fetch(base+'/api/public/order-lookup',{method:'POST',headers:{'Content-Type':'application/json',Origin:process.env.APP_ORIGIN||'https://unlockertools.tech'},body:JSON.stringify({id:1,token:'0'.repeat(64)})});
   check(invalid.status===404||invalid.status===429,'Consulta pública rejeita token não autorizado');
 }finally{await browser.close()}
 if(failures.length){console.error('Web Inspector: '+failures.length+' falha(s)');process.exitCode=1}else console.log('Web Inspector: verificações concluídas com sucesso');
