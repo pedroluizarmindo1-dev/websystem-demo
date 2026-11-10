@@ -3,6 +3,7 @@ import {randomBytes,createHash} from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import {mountCommerce} from './commerce.mjs';
+import {mountClientArea} from './client-area.mjs';
 import {getAnnouncements} from './telegram-announcements.mjs';
 import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
 import {verify,issue,getSession,revoke} from './auth.mjs';
@@ -31,6 +32,7 @@ app.post('/api/auth/logout',(req,res)=>{revoke(cookies(req).ws_session);res.setH
 app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools',version:'1.0.0-rc1'}));
 app.get('/api/readiness',guard,(req,res)=>{if(req.user.role!=='admin')return res.status(403).json({error:'Acesso restrito'});const configured=!!(process.env.IMEIVE_API_URL&&process.env.IMEIVE_API_USERNAME&&process.env.IMEIVE_API_KEY);const count=get("SELECT COUNT(*) AS n FROM services WHERE source='imeive'")?.n||0;res.setHeader('Cache-Control','no-store');res.json({version:'1.0.0-rc1',supplier_credentials_configured:configured,supplier_catalog_count:count,database_persistent:process.env.DATA_DIR?true:false,automatic_fulfillment_enabled:false,production_ready:false})});
 // Token-protected reseller endpoints are mounted before the browser session guard.
+mountClientArea(app,db,{adminGuard:guard});
 mountCommerce(app,db,{sessionGuard:guard,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
 const publicLookupAttempts=new Map();
