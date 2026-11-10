@@ -13,6 +13,13 @@ import { resolve } from 'node:path';
 const app=express();app.disable('x-powered-by');
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');if(req.path.startsWith('/api/'))res.setHeader('Cache-Control','no-store');next()});
 app.use(express.json({limit:'128kb'}));app.use(cors({origin:false}));
+// Browser session mutations must originate from the configured first-party origin.
+app.use('/api',(req,res,next)=>{
+ if(['GET','HEAD','OPTIONS'].includes(req.method)||req.path==='/dhru'||req.path.startsWith('/dhru/'))return next();
+ const origin=req.headers.origin;
+ if(!process.env.APP_ORIGIN||origin!==process.env.APP_ORIGIN)return res.status(403).json({error:'Origem não autorizada'});
+ next();
+});
 const root=resolve(import.meta.dirname,'..');mkdirSync(resolve(root,'data'),{recursive:true});
 const db=new DatabaseSync(resolve(root,'data','websystem.sqlite'));
 db.exec(readFileSync(resolve(root,'api/schema.sql'),'utf8'));
@@ -64,7 +71,8 @@ app.post('/api/integrations/imeive/sync',integrationAdmin,async(req,res)=>{
  finally{supplierSyncRunning=false}
 });
 // All application data requires login, including catalog and prices.
-app.use('/api',guard);
+// Legacy management endpoints are admin-only until finer-grained RBAC is implemented.
+app.use('/api',integrationAdmin);
 app.get('/api/telegram/announcements',async(req,res)=>{try{res.json(await getAnnouncements())}catch(e){res.status(502).json({error:'Não foi possível consultar anúncios do Telegram'})}});
 app.get('/api/telegram/catalog-status',(req,res)=>res.json(getCatalogSyncStatus()));
 app.post('/api/telegram/sync',(req,res)=>{if(!getCatalogSyncStatus().running)syncEntireCatalog(db).catch(e=>console.error('Telegram import:',e.message));res.status(202).json({started:true,status:getCatalogSyncStatus()})});
