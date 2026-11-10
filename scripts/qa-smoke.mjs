@@ -14,4 +14,16 @@ try{
   if(r.status!==expected)throw Error(path+' expected '+expected+' got '+r.status);
   console.log(path,r.status);
  }
+ // Ensure private client and administrative resources reject unauthenticated users.
+ for(const path of ['/api/auth/me','/api/client/me','/api/client/orders','/api/client/tickets','/api/admin/client-area/mail/status']){
+  const r=await fetch(base+path,{signal:AbortSignal.timeout(3000)});
+  if(r.status!==401)throw Error(path+' must reject unauthenticated requests, got '+r.status);
+  console.log('AUTH_REQUIRED',path,r.status);
+ }
+ // Origin/CSRF guard must reject state-changing requests without a trusted Origin.
+ for(const path of ['/api/auth/login','/api/client/login','/api/client/tickets','/api/client/wallet/deposits']){
+  const r=await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(3000)});
+  if(r.status!==403)throw Error(path+' missing Origin must be rejected, got '+r.status);
+  console.log('ORIGIN_REQUIRED',path,r.status);
+ }
 }finally{child.kill('SIGTERM')}
