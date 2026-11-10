@@ -12,7 +12,20 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 const app=express();app.disable('x-powered-by');
-app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');if(req.path.startsWith('/api/'))res.setHeader('Cache-Control','no-store');next()});
+// Trust only the local Nginx reverse proxy; never accept arbitrary client-supplied forwarded IPs.
+app.set('trust proxy','loopback');
+const allowedAdminIPs=()=>String(process.env.ADMIN_ALLOWED_IPS||'').split(',').map(s=>s.trim()).filter(Boolean);
+const adminIpGate=(req,res,next)=>{const allowed=allowedAdminIPs();if(!allowed.length)return res.status(503).send('Painel administrativo não configurado');if(!allowed.includes(req.ip))return res.status(404).send('Não encontrado');next()};
+// Bounded in-memory rate limit (also enforce at reverse proxy for multi-worker deployments).
+const buckets=new Map();let bucketChecks=0;
+function rateLimit({max,windowMs,keyPrefix}){return(req,res,next)=>{const now=Date.now();if(++bucketChecks%500===0){for(const [k,v] of buckets)if(v.until<=now)buckets.delete(k)}const key=keyPrefix+':'+req.ip;let b=buckets.get(key);if(!b||b.until<=now){b={n:0,until:now+windowMs};buckets.set(key,b)}if(++b.n>max){res.setHeader('Retry-After',String(Math.max(1,Math.ceil((b.until-now)/1000))));return res.status(429).json({error:'Muitas solicitações; tente novamente mais tarde'})}next()}}
+app.use('/api',rateLimit({max:240,windowMs:60000,keyPrefix:'api'}));
+app.use('/api/auth/login',adminIpGate,rateLimit({max:10,windowMs:15*60000,keyPrefix:'admin-auth'}));
+app.use('/api/auth/me',adminIpGate);
+app.use('/api/auth/logout',adminIpGate);
+app.use('/api/admin',adminIpGate);
+
+app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'");if(req.secure)res.setHeader('Strict-Transport-Security','max-age=31536000');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');if(req.path.startsWith('/api/'))res.setHeader('Cache-Control','no-store');next()});
 app.use(express.json({limit:'128kb'}));app.use(cors({origin:false}));
 // Browser session mutations must originate from the configured first-party origin.
 app.use('/api',(req,res,next)=>{
@@ -34,6 +47,22 @@ const session=req=>getSession(cookies(req).ws_session);
 const guard=(req,res,next)=>{const user=session(req);if(!user)return res.status(401).json({error:'Login necessário'});req.user=user;next()};
 const adminOnly=(req,res,next)=>guard(req,res,()=>req.user.role==='admin'?next():res.status(403).json({error:'Acesso restrito'}));
 db.exec(`CREATE TABLE IF NOT EXISTS security_events(id INTEGER PRIMARY KEY,actor TEXT NOT NULL,action TEXT NOT NULL,outcome TEXT NOT NULL,ip TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+// Persistent IP abuse protection survives container restarts; tokens and passwords are never logged.
+db.exec(`CREATE TABLE IF NOT EXISTS auth_ip_limits(ip TEXT NOT NULL,route TEXT NOT NULL,failures INTEGER NOT NULL DEFAULT 0,window_until INTEGER NOT NULL DEFAULT 0,blocked_until INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(ip,route))`);
+app.use(['/api/auth/login','/api/client/login'],(req,res,next)=>{
+ const ip=String(req.ip||'unknown').slice(0,90),route=req.path,now=Date.now();
+ const q=db.prepare('SELECT failures,window_until,blocked_until FROM auth_ip_limits WHERE ip=? AND route=?').get(ip,route);
+ if(q?.blocked_until>now){res.setHeader('Retry-After',String(Math.ceil((q.blocked_until-now)/1000)));return res.status(429).json({error:'IP temporariamente bloqueado por tentativas de autenticação'})}
+ res.on('finish',()=>{
+  try{
+   if(res.statusCode>=200&&res.statusCode<300){db.prepare('DELETE FROM auth_ip_limits WHERE ip=? AND route=?').run(ip,route);return}
+   if(res.statusCode!==401)return;
+   const current=db.prepare('SELECT failures,window_until FROM auth_ip_limits WHERE ip=? AND route=?').get(ip,route);
+   const failures=(current&&current.window_until>now?current.failures:0)+1;
+   db.prepare('INSERT INTO auth_ip_limits(ip,route,failures,window_until,blocked_until) VALUES (?,?,?,?,?) ON CONFLICT(ip,route) DO UPDATE SET failures=excluded.failures,window_until=excluded.window_until,blocked_until=excluded.blocked_until').run(ip,route,failures,now+900000,failures>=8?now+900000:0);
+  }catch(e){console.error('Auth abuse audit failure:',e.message)}
+ });next();
+});
 const securityEvent=(actor,action,outcome,req)=>{try{db.prepare('INSERT INTO security_events(actor,action,outcome,ip) VALUES (?,?,?,?)').run(String(actor).slice(0,120),String(action).slice(0,100),String(outcome).slice(0,30),String(req.ip||'unknown').slice(0,90))}catch(e){console.error('Security event write failed:',e.message)}};
 app.use('/api/admin',(req,res,next)=>adminOnly(req,res,()=>next()));
 const failures=new Map();
@@ -120,20 +149,21 @@ const port=Number(process.env.PORT||3100);const host=process.env.HOST||'127.0.0.
 const dist=resolve(root,'dist');
 if(existsSync(resolve(dist,'index.html'))){
  // Do not expose the admin SPA through /index.html or arbitrary fallback paths.
- app.get('/index.html',(req,res)=>res.redirect(308,'/admin/'));
- app.get('/painel.html',(req,res)=>res.redirect(308,'/admin/'));
- app.get('/admin',(req,res,next)=>req.path==='/admin'?res.redirect(308,'/admin/'):next());
- app.get('/admin/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
+ app.get('/index.html',adminIpGate,(req,res)=>res.redirect(308,'/admin/'));
+ app.get('/painel.html',adminIpGate,(req,res)=>res.redirect(308,'/admin/'));
+ app.get('/admin',adminIpGate,(req,res,next)=>req.path==='/admin'?res.redirect(308,'/admin/'):next());
+ app.get('/admin/',adminIpGate,(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
  // Named routes share the existing protected applications until dedicated modules are ready.
- app.get(['/admin/users','/admin/services','/admin/orders','/admin/settings','/admin/audit'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
+ app.get(['/admin/users','/admin/services','/admin/orders','/admin/settings','/admin/audit'],adminIpGate,(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
  app.get('/client',(req,res,next)=>req.path==='/client'?res.redirect(308,'/client/'):next());
  app.get(['/client/','/client/orders','/client/support'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'cliente.html'))});
  app.get('/login',(req,res)=>res.redirect(302,'/client/'));
  app.get('/services',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'services.html'))});
- app.get('/register',(req,res)=>res.status(503).send('Cadastro público ainda indisponível. Solicite acesso ao suporte.') );
+ app.get('/register',(req,res)=>res.redirect(302,'/client/?view=register'));
  app.get('/client/wallet',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'wallet.html'))});
  app.use(express.static(dist,{index:false,maxAge:'1h',setHeaders:(res,file)=>{if(/\\.html$/i.test(file))res.setHeader('Cache-Control','no-store')}}));
  app.get('/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'home.html'))});
  app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});return res.status(404).send('Página não encontrada')});
 }
 app.listen(port,host,()=>console.log('WebSystem production: http://'+host+':'+port));
+[exit status 0]
