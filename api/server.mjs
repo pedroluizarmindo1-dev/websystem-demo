@@ -112,6 +112,9 @@ const port=Number(process.env.PORT||3100);const host=process.env.HOST||'127.0.0.
 const dist=resolve(root,'dist');
 if(existsSync(resolve(dist,'index.html'))){
  app.use(express.static(dist,{index:false,maxAge:'1h'}));
+ // Public Home is the default entry point; admin SPA remains at /painel.html.
+ app.get('/',(req,res)=>res.sendFile(resolve(dist,'home.html')));
+ app.get('/painel.html',(req,res)=>res.sendFile(resolve(dist,'index.html')));
  app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});res.sendFile(resolve(dist,'index.html'))});
 }
 app.listen(port,host,()=>console.log('WebSystem production: http://'+host+':'+port));
