@@ -36,6 +36,8 @@ export function mountClientArea(app,db,{adminGuard}){
  CREATE INDEX IF NOT EXISTS idx_mail_outbox_status ON mail_outbox(status,id);`);
  const q=(sql,...args)=>db.prepare(sql).get(...args),all=(sql,...args)=>db.prepare(sql).all(...args),run=(sql,...args)=>db.prepare(sql).run(...args);
  const router=Router();
+ const originGuard=(req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)){const origin=req.headers.origin;const expected=process.env.APP_ORIGIN;if(origin&&(!expected||origin!==expected))return fail(res,403,'Origem não autorizada')}next()};
+ router.use(originGuard);
  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');next()});
  const sessions=req=>{const t=cookie(req)[tokenKey];if(!t||!/^[a-f0-9]{64}$/.test(t))return null;return q('SELECT u.id,u.email,u.display_name FROM client_sessions s JOIN client_users u ON u.id=s.client_id WHERE s.token_hash=? AND s.expires_at>? AND u.enabled=1',digest(t),Date.now())};
  const requireClient=(req,res,next)=>{const u=sessions(req);if(!u)return fail(res,401,'Autenticação necessária');req.client=u;next()};
@@ -74,7 +76,7 @@ export function mountClientArea(app,db,{adminGuard}){
   }catch(e){db.exec('ROLLBACK');return fail(res,500,'Não foi possível criar o chamado')}
  });
  app.use('/api/client',router);
- const admin=Router();admin.use(adminGuard,(req,res,next)=>req.user.role==='admin'?next():fail(res,403,'Acesso restrito'));
+ const admin=Router();admin.use(originGuard);admin.use(adminGuard,(req,res,next)=>req.user.role==='admin'?next():fail(res,403,'Acesso restrito'));
  admin.post('/users',(req,res)=>{
   const email=String(req.body?.email||'').trim().toLowerCase(),name=String(req.body?.display_name||'').trim(),password=req.body?.password;
   if(!validEmail(email)||!name||name.length>120||!safePassword(password))return fail(res,400,'E-mail, nome e senha de 16 a 256 caracteres obrigatórios');
@@ -94,7 +96,11 @@ export function mountClientArea(app,db,{adminGuard}){
   res.status(201).json({id:Number(r.lastInsertRowid),status:'pending'});
  });
  admin.get('/mail/status',(req,res)=>res.json({configured:!!mailReady(),counts:all('SELECT status,COUNT(*) AS count FROM mail_outbox GROUP BY status')}));
+ let sending=false;
  admin.post('/mail/send-pending',async(req,res)=>{
+  if(sending)return fail(res,409,'Envio em andamento');
+  sending=true;
+  try{
   if(!mailReady())return fail(res,503,'SMTP não configurado');
   const rows=all("SELECT * FROM mail_outbox WHERE status='pending' AND attempts<3 ORDER BY id LIMIT 10");
   const tx=transport();let sent=0,failed=0;
@@ -104,6 +110,7 @@ export function mountClientArea(app,db,{adminGuard}){
    catch(e){run("UPDATE mail_outbox SET status='pending',last_error=? WHERE id=?",String(e.message).slice(0,300),m.id);failed++}
   }
   res.json({sent,failed});
+  }finally{sending=false}
  });
  app.use('/api/admin/client-area',admin);
 }
