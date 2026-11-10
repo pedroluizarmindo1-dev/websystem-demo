@@ -35,4 +35,3 @@ try{
  }
  console.log('RBAC_ISOLATED_PASS');
 }finally{if(child){child.kill('SIGTERM');await delay(150)}rmSync(temp,{recursive:true,force:true})}
-[exit status 0]
