@@ -50,4 +50,3 @@ try{
  r=await request('/me',{cookie:a.cookie});assert(r.status===401,'Session not revoked on logout');
  console.log('CLIENT_ISOLATION_PASS: login, orders, cross-account access, tickets, logout');
 }finally{if(child){child.kill('SIGTERM');await delay(150)}rmSync(dir,{recursive:true,force:true})}
-[exit status 0]
