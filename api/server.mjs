@@ -117,10 +117,13 @@ if(process.env.DEMO_MODE==='true'){
 const port=Number(process.env.PORT||3100);const host=process.env.HOST||'127.0.0.1';
 const dist=resolve(root,'dist');
 if(existsSync(resolve(dist,'index.html'))){
+ // Do not expose the admin SPA through /index.html or arbitrary fallback paths.
+ app.get('/index.html',(req,res)=>res.redirect(308,'/admin/'));
+ app.get('/painel.html',(req,res)=>res.redirect(308,'/admin/'));
+ app.get('/admin',(req,res)=>res.redirect(308,'/admin/'));
+ app.get('/admin/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
  app.use(express.static(dist,{index:false,maxAge:'1h',setHeaders:(res,file)=>{if(/\\.html$/i.test(file))res.setHeader('Cache-Control','no-store')}}));
- // Public Home is the default entry point; admin SPA remains at /painel.html.
- app.get('/',(req,res)=>res.sendFile(resolve(dist,'home.html')));
- app.get('/painel.html',(req,res)=>res.sendFile(resolve(dist,'index.html')));
- app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});res.sendFile(resolve(dist,'index.html'))});
+ app.get('/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'home.html'))});
+ app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});return res.status(404).send('Página não encontrada')});
 }
 app.listen(port,host,()=>console.log('WebSystem production: http://'+host+':'+port));
