@@ -27,4 +27,3 @@ try{
   console.log('ORIGIN_REQUIRED',path,r.status);
  }
 }finally{child.kill('SIGTERM')}
-[exit status 0]
