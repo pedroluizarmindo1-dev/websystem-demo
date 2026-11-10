@@ -48,7 +48,7 @@ try{
     }else{
       // Backups must be performed and independently verified before enabling deploy.
       if(process.env.BACKUP_VERIFIED!=='true')skip('Executor','Docker deployment','BACKUP_VERIFIED=true required after verified database backup');
-      else attempt('Executor','Docker deployment',()=>{run('docker',['compose','up','-d','--build','--no-deps','websystem'],180000);const status=run('docker',['compose','ps','--status','running','--services'],20000);if(!status.split(/\\s+/).includes('websystem'))throw Error('Websystem container not running after deployment');const health=run('docker',['compose','exec','-T','websystem','node','-e',"fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"],30000);state.deployed=true;return 'Docker container running; internal health OK '+health});
+      else attempt('Executor','Docker deployment',()=>{run('docker',['compose','up','-d','--build','--no-deps','websystem'],180000);const status=run('docker',['compose','ps','--status','running','--services'],20000);if(!status.split(/\s+/).includes('websystem'))throw Error('Websystem container not running after deployment');const health=run('docker',['compose','exec','-T','websystem','node','-e',"fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"],30000);state.deployed=true;return 'Docker container running; internal health OK '+health});
     }
   }else skip('Executor','Docker deployment','Preflight only; use --deploy with required safety gates on VPS');
   if(!state.deployed)skip('Web Master','publication','No verified deployment in this run');
