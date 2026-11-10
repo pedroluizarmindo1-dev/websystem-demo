@@ -1,0 +1,38 @@
+name: WebSystem container build
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - 'compose.yaml'
+      - '.dockerignore'
+      - 'package.json'
+      - 'api/**'
+      - 'src/**'
+      - 'index.html'
+      - 'vite.config.js'
+      - '.github/workflows/container-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -t websystem:ci .
+      - name: Start local test container
+        run: docker run -d --name websystem-ci -e HOST=0.0.0.0 -e PORT=3100 -p 127.0.0.1:3100:3100 websystem:ci
+      - name: Verify health endpoint
+        run: |
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3100/api/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs websystem-ci
+          exit 1
+      - name: Show logs on failure
+        if: failure()
+        run: docker logs websystem-ci || true
