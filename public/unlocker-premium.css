@@ -34,3 +34,22 @@ body.ut-secondary{background:radial-gradient(ellipse at 75% 0%,#12351f 0%,transp
 .ut-secondary .status{background:#163b23;border-color:#2c9b59;color:#b4f4cb}
 .ut-secondary .note{color:#a3bbaa}
 @media(max-width:420px){.ut-secondary main{padding-inline:16px}.ut-secondary section{padding:18px}.ut-secondary input,.ut-secondary select,.ut-secondary button{max-width:100%}}
+
+/* Final UX stabilization: preserve all content at narrow widths */
+.ut-premium .hero{display:block;overflow:visible;isolation:isolate}
+.ut-premium .hero:after{z-index:-1;overflow:hidden}
+.ut-premium .hero h1,.ut-premium .hero p,.ut-premium .hero .actions{max-width:100%;overflow-wrap:break-word}
+.ut-premium .header-inner{gap:14px}
+.ut-premium .nav{gap:14px}
+.ut-secondary{overflow-x:clip}
+.ut-secondary main,.ut-secondary section,.ut-secondary form,.ut-secondary label{min-width:0;max-width:100%}
+.ut-secondary select,.ut-secondary input,.ut-secondary button{box-sizing:border-box;max-width:100%}
+.ut-secondary select{width:100%}
+.ut-secondary .brand{display:inline-flex;align-items:center;gap:12px}
+.ut-secondary .brand img{flex-shrink:0}
+.ut-secondary .brand .mark{display:none}
+@media(max-width:420px){.ut-premium .hero{padding:24px 20px}.ut-premium .hero h1{font-size:clamp(30px,9vw,40px)}.ut-premium .actions{display:grid;grid-template-columns:minmax(0,1fr)}.ut-premium .actions .btn{width:100%}.ut-premium .header-inner{padding-block:12px}.ut-premium .nav{width:100%;justify-content:space-between;gap:8px}.ut-premium .nav a{font-size:12px}.ut-secondary input,.ut-secondary select{width:100%}}
+/* Clip decorative rings only; hero text now uses a normal block layout. */
+.ut-premium .hero{overflow:clip}
+.ut-premium .hero:after{pointer-events:none}
+@media(max-width:540px){.ut-premium .hero:after{display:none}}
