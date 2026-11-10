@@ -37,6 +37,7 @@ try{
   });
   attempt('QA','isolated authenticated non-admin RBAC',()=>run('node',['scripts/qa-rbac-isolated.mjs'],45000));
   attempt('QA','isolated two-client end-to-end flows',()=>run('node',['scripts/qa-client-isolated.mjs'],60000));
+  attempt('QA','isolated IP restriction and abuse protection',()=>run('node',['scripts/qa-security-isolated.mjs'],60000));
   // 5. Debugger: log failed checks, no unreviewed production hotfix.
   const failed=report.agents.filter(x=>x.status==='FAIL');
   record('Debugger','failure triage',failed.length?'BLOCKED':'PASS',failed.length?failed.map(x=>x.task).join(', '):'No failed preflight checks');
@@ -60,3 +61,4 @@ finally{
   mkdirSync(resolve(root,'reports'),{recursive:true});writeFileSync(resolve(root,'reports','agents-latest.json'),JSON.stringify(report,null,2)+'\n');
   console.log('REPORT reports/agents-latest.json');if(state.failed)process.exitCode=1;
 }
+[exit status 0]
