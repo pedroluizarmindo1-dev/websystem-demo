@@ -124,7 +124,7 @@ if(existsSync(resolve(dist,'index.html'))){
  app.get('/admin/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
  // Named routes share the existing protected applications until dedicated modules are ready.
  app.get(['/admin/users','/admin/services','/admin/orders','/admin/settings','/admin/audit'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
- app.get('/client',(req,res)=>res.redirect(308,'/client/'));
+ app.get('/client',(req,res,next)=>req.path==='/client'?res.redirect(308,'/client/'):next());
  app.get(['/client/','/client/orders','/client/support'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'cliente.html'))});
  app.get('/login',(req,res)=>res.redirect(302,'/client/'));
  app.get('/services',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'services.html'))});
