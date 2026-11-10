@@ -34,6 +34,8 @@ export function mountClientArea(app,db,{adminGuard}){
  last_error TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,sent_at TEXT);
  CREATE INDEX IF NOT EXISTS idx_client_sessions_exp ON client_sessions(expires_at);
  CREATE INDEX IF NOT EXISTS idx_mail_outbox_status ON mail_outbox(status,id);`);
+ db.exec(`CREATE TABLE IF NOT EXISTS client_security_events(id INTEGER PRIMARY KEY,client_id INTEGER,action TEXT NOT NULL,outcome TEXT NOT NULL,ip TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+ const event=(id,action,outcome,req)=>{try{db.prepare('INSERT INTO client_security_events(client_id,action,outcome,ip) VALUES (?,?,?,?)').run(id||null,action,outcome,String(req.ip||'unknown').slice(0,90))}catch(e){console.error('Client audit write failed:',e.message)}};
  const q=(sql,...args)=>db.prepare(sql).get(...args),all=(sql,...args)=>db.prepare(sql).all(...args),run=(sql,...args)=>db.prepare(sql).run(...args);
  const router=Router();
  const originGuard=(req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)){const origin=req.headers.origin;const expected=process.env.APP_ORIGIN;if(!expected||origin!==expected)return fail(res,403,'Origem não autorizada')}next()};
@@ -45,21 +47,21 @@ export function mountClientArea(app,db,{adminGuard}){
  router.post('/login',(req,res)=>{
   const email=String(req.body?.email||'').trim().toLowerCase(),password=req.body?.password;
   const ip=req.ip||req.socket.remoteAddress||'unknown',now=Date.now(),entry=attempts.get(ip)||{n:0,until:0};
-  if(entry.until>now)return fail(res,429,'Tente novamente mais tarde');
+  if(entry.until>now){event(null,'client_login','rate_limited',req);return fail(res,429,'Tente novamente mais tarde')}
   if(!validEmail(email)||typeof password!=='string'||password.length>256)return fail(res,401,'Credenciais inválidas');
   const u=q('SELECT * FROM client_users WHERE email=? AND enabled=1',email);
   const salt=u?.password_salt||'00000000000000000000000000000000';
   const expected=Buffer.from(u?.password_hash||hashPassword('dummy-password-not-valid',salt),'hex');
   const actual=scryptSync(password,salt,64);
   if(!u||expected.length!==actual.length||!timingSafeEqual(actual,expected)){
-   entry.n++;if(entry.n>=5){entry.n=0;entry.until=now+15*60*1000}attempts.set(ip,entry);
+   entry.n++;if(entry.n>=5){entry.n=0;entry.until=now+15*60*1000}attempts.set(ip,entry);event(u?.id||null,'client_login','denied',req);
    return fail(res,401,'Credenciais inválidas');
   }
-  attempts.delete(ip);const token=randomBytes(32).toString('hex');
+  attempts.delete(ip);event(u.id,'client_login','success',req);const token=randomBytes(32).toString('hex');
   run('INSERT INTO client_sessions(token_hash,client_id,expires_at) VALUES (?,?,?)',digest(token),u.id,Date.now()+8*3600000);
   res.setHeader('Set-Cookie',secureCookie(req,token,28800));res.json({id:u.id,email:u.email,display_name:u.display_name});
  });
- router.post('/logout',(req,res)=>{const t=cookie(req)[tokenKey];if(t)run('DELETE FROM client_sessions WHERE token_hash=?',digest(t));res.setHeader('Set-Cookie',secureCookie(req,'',0));res.json({ok:true})});
+ router.post('/logout',(req,res)=>{const u=sessions(req);if(u)event(u.id,'client_logout','success',req);const t=cookie(req)[tokenKey];if(t)run('DELETE FROM client_sessions WHERE token_hash=?',digest(t));res.setHeader('Set-Cookie',secureCookie(req,'',0));res.json({ok:true})});
  router.get('/me',requireClient,(req,res)=>res.json(req.client));
  router.get('/orders',requireClient,(req,res)=>res.json(all(`SELECT o.id,o.device_brand,o.device_model,o.status,o.payment_status,o.created_at,o.updated_at FROM orders o JOIN client_order_links l ON l.order_id=o.id WHERE l.client_id=? ORDER BY o.id DESC LIMIT 100`,req.client.id)));
  router.get('/tickets',requireClient,(req,res)=>res.json(all(`SELECT t.id,t.order_id,t.subject,t.description,t.status,t.resolution,t.created_at,t.updated_at FROM support_tickets t JOIN client_ticket_links l ON l.ticket_id=t.id WHERE l.client_id=? ORDER BY t.id DESC LIMIT 100`,req.client.id)));
@@ -72,7 +74,7 @@ export function mountClientArea(app,db,{adminGuard}){
   try{
    const r=run('INSERT INTO support_tickets(order_id,subject,description) VALUES (?,?,?)',orderId,subject,description);
    run('INSERT INTO client_ticket_links(client_id,ticket_id) VALUES (?,?)',req.client.id,Number(r.lastInsertRowid));
-   db.exec('COMMIT');res.status(201).json({id:Number(r.lastInsertRowid),status:'open'});
+   db.exec('COMMIT');event(req.client.id,'client_ticket_create','success',req);res.status(201).json({id:Number(r.lastInsertRowid),status:'open'});
   }catch(e){db.exec('ROLLBACK');return fail(res,500,'Não foi possível criar o chamado')}
  });
  app.use('/api/client',router);
@@ -81,19 +83,19 @@ export function mountClientArea(app,db,{adminGuard}){
   const email=String(req.body?.email||'').trim().toLowerCase(),name=String(req.body?.display_name||'').trim(),password=req.body?.password;
   if(!validEmail(email)||!name||name.length>120||!safePassword(password))return fail(res,400,'E-mail, nome e senha de 16 a 256 caracteres obrigatórios');
   const salt=randomBytes(24).toString('hex');
-  try{const r=run('INSERT INTO client_users(email,display_name,password_salt,password_hash) VALUES (?,?,?,?)',email,name,salt,hashPassword(password,salt));res.status(201).json({id:Number(r.lastInsertRowid),email})}
+  try{const r=run('INSERT INTO client_users(email,display_name,password_salt,password_hash) VALUES (?,?,?,?)',email,name,salt,hashPassword(password,salt));event(null,'admin_client_create','success',req);res.status(201).json({id:Number(r.lastInsertRowid),email})}
   catch(e){return fail(res,409,'E-mail já cadastrado')}
  });
  admin.post('/users/:id/orders',(req,res)=>{
   const uid=Number(req.params.id),oid=Number(req.body?.order_id);
   if(!Number.isSafeInteger(uid)||!Number.isSafeInteger(oid)||!q('SELECT id FROM client_users WHERE id=?',uid)||!q('SELECT id FROM orders WHERE id=?',oid))return fail(res,404,'Cliente ou pedido não encontrado');
-  try{run('INSERT INTO client_order_links(client_id,order_id) VALUES (?,?)',uid,oid);res.status(201).json({ok:true})}catch{return fail(res,409,'Pedido já vinculado')}
+  try{run('INSERT INTO client_order_links(client_id,order_id) VALUES (?,?)',uid,oid);event(uid,'admin_order_link','success',req);res.status(201).json({ok:true})}catch{return fail(res,409,'Pedido já vinculado')}
  });
  admin.post('/mail/queue',(req,res)=>{
   const recipient=String(req.body?.recipient||'').trim(),subject=String(req.body?.subject||'').trim(),body=String(req.body?.body||'').trim();
   if(!validEmail(recipient)||!subject||subject.length>180||!body||body.length>10000)return fail(res,400,'Mensagem inválida');
   const r=run('INSERT INTO mail_outbox(recipient,subject,body) VALUES (?,?,?)',recipient,subject,body);
-  res.status(201).json({id:Number(r.lastInsertRowid),status:'pending'});
+  event(null,'admin_mail_queue','success',req);res.status(201).json({id:Number(r.lastInsertRowid),status:'pending'});
  });
  admin.get('/mail/status',(req,res)=>res.json({configured:!!mailReady(),counts:all('SELECT status,COUNT(*) AS count FROM mail_outbox GROUP BY status')}));
  let sending=false;
