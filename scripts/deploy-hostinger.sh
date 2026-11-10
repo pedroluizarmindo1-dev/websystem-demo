@@ -13,6 +13,7 @@ echo "Starting guarded WebSystem deploy at $STAMP"
 test "$(id -u)" -eq 0 || { echo 'Requires root privileges'; exit 1; }
 test -d "$APP" && test -f "$APP/compose.yaml" && test -f "$ARCHIVE" || { echo 'Missing app or release archive'; exit 1; }
 test -x "$BACKUP_CMD" || { echo 'Verified backup executable unavailable'; exit 1; }
+command -v rsync >/dev/null || { echo 'rsync required'; exit 1; }
 command -v docker >/dev/null && command -v tar >/dev/null
 cd "$APP"
 docker compose config -q
@@ -26,18 +27,18 @@ test -f "$STAGE/compose.yaml" && test -f "$STAGE/Dockerfile" && test -f "$STAGE/
 # Preserve server-local overrides and untracked configuration.
 if test -f "$APP/compose.override.yaml"; then cp -a "$APP/compose.override.yaml" "$STAGE/"; fi
 # Keep production data on the existing named Docker volume, never in release archive.
-cp -a "$APP" "$PREVIOUS"
+mkdir -m 700 "$PREVIOUS"
+rsync -a --exclude=.git --exclude=node_modules --exclude=data --exclude=backups --exclude=dist "$APP/" "$PREVIOUS/"
 cleanup() { rm -f "$ARCHIVE"; }
 trap cleanup EXIT
 rollback() {
   echo 'Deployment failed; restoring previous application files'
-  rsync -a --delete --exclude=compose.override.yaml --exclude=data --exclude=backups "$PREVIOUS/" "$APP/" || true
+  rsync -a --exclude=compose.override.yaml --exclude=data --exclude=backups --exclude=.git --exclude=node_modules --exclude=dist "$PREVIOUS/" "$APP/" || true
   cd "$APP"
   docker compose up -d --build --no-deps websystem || true
   echo 'Rollback of application files attempted; database migrations require manual verification'
 }
 trap rollback ERR
-command -v rsync >/dev/null || { echo 'rsync required'; exit 1; }
 rsync -a --delete --exclude=compose.override.yaml --exclude=data --exclude=backups "$STAGE/" "$APP/"
 cd "$APP"
 docker compose config -q
