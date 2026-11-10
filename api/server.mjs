@@ -120,7 +120,7 @@ if(existsSync(resolve(dist,'index.html'))){
  // Do not expose the admin SPA through /index.html or arbitrary fallback paths.
  app.get('/index.html',(req,res)=>res.redirect(308,'/admin/'));
  app.get('/painel.html',(req,res)=>res.redirect(308,'/admin/'));
- app.get('/admin',(req,res)=>res.redirect(308,'/admin/'));
+ app.get('/admin',(req,res,next)=>req.path==='/admin'?res.redirect(308,'/admin/'):next());
  app.get('/admin/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
  app.use(express.static(dist,{index:false,maxAge:'1h',setHeaders:(res,file)=>{if(/\\.html$/i.test(file))res.setHeader('Cache-Control','no-store')}}));
  app.get('/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'home.html'))});
