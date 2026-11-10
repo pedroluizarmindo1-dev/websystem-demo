@@ -39,13 +39,16 @@ export function mountClientArea(app,db,{adminGuard}){
  purpose TEXT NOT NULL CHECK(purpose IN ('verify','reset')),expires_at INTEGER NOT NULL);
  CREATE INDEX IF NOT EXISTS idx_client_auth_tokens_exp ON client_auth_tokens(expires_at);`);
  db.exec(`CREATE TABLE IF NOT EXISTS client_security_events(id INTEGER PRIMARY KEY,client_id INTEGER,action TEXT NOT NULL,outcome TEXT NOT NULL,ip TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+ // Additive migration: existing users retain their IDs and credentials.
+ const userCols=db.prepare('PRAGMA table_info(client_users)').all().map(c=>c.name);
+ for(const [col,type] of [['country_code','TEXT'],['phone_e164','TEXT'],['preferred_locale','TEXT']])if(!userCols.includes(col))db.exec(`ALTER TABLE client_users ADD COLUMN ${col} ${type}`);
  const event=(id,action,outcome,req)=>{try{db.prepare('INSERT INTO client_security_events(client_id,action,outcome,ip) VALUES (?,?,?,?)').run(id||null,action,outcome,String(req.ip||'unknown').slice(0,90))}catch(e){console.error('Client audit write failed:',e.message)}};
  const q=(sql,...args)=>db.prepare(sql).get(...args),all=(sql,...args)=>db.prepare(sql).all(...args),run=(sql,...args)=>db.prepare(sql).run(...args);
  const router=Router();
  const originGuard=(req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)){const origin=req.headers.origin;const expected=process.env.APP_ORIGIN;if(!expected||origin!==expected)return fail(res,403,'Origem não autorizada')}next()};
  router.use(originGuard);
  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');next()});
- const sessions=req=>{const t=cookie(req)[tokenKey];if(!t||!/^[a-f0-9]{64}$/.test(t))return null;return q('SELECT u.id,u.email,u.display_name FROM client_sessions s JOIN client_users u ON u.id=s.client_id WHERE s.token_hash=? AND s.expires_at>? AND u.enabled=1',digest(t),Date.now())};
+ const sessions=req=>{const t=cookie(req)[tokenKey];if(!t||!/^[a-f0-9]{64}$/.test(t))return null;return q('SELECT u.id,u.email,u.display_name,u.country_code,u.phone_e164,u.preferred_locale FROM client_sessions s JOIN client_users u ON u.id=s.client_id WHERE s.token_hash=? AND s.expires_at>? AND u.enabled=1',digest(t),Date.now())};
  const requireClient=(req,res,next)=>{const u=sessions(req);if(!u)return fail(res,401,'Autenticação necessária');req.client=u;next()};
  const flowLimits=new Map();
  const limited=(name,max,windowMs)=>(req,res,next)=>{const now=Date.now(),key=name+':'+req.ip;let x=flowLimits.get(key);if(!x||x.until<now)x={n:0,until:now+windowMs};flowLimits.set(key,x);if(x.n++>=max)return fail(res,429,'Aguarde antes de tentar novamente');if(flowLimits.size>5000)for(const [k,v] of flowLimits)if(v.until<now)flowLimits.delete(k);next()};
@@ -55,11 +58,13 @@ export function mountClientArea(app,db,{adminGuard}){
   if(!mailReady())return fail(res,503,'Cadastro indisponível temporariamente');
   const email=String(req.body?.email||'').trim().toLowerCase(),name=String(req.body?.display_name||'').trim(),password=req.body?.password;
   if(!validEmail(email)||!name||name.length>120||!safePassword(password))return fail(res,400,'Informe nome, e-mail e senha de pelo menos 16 caracteres');
+  const country=String(req.body?.country_code||'').toUpperCase(),phone=String(req.body?.phone_e164||''),locale=String(req.body?.preferred_locale||'pt-BR');
+  if(!/^[A-Z]{2}$/.test(country)||!/^\+[1-9]\d{7,14}$/.test(phone)||!['pt-BR','en','es'].includes(locale))return fail(res,400,'Informe país, telefone internacional e idioma válidos');
   const old=q('SELECT id,enabled FROM client_users WHERE email=?',email);
   if(old?.enabled)return res.json({ok:true,message:'Se o cadastro puder ser realizado, você receberá um e-mail'});
   const salt=randomBytes(24).toString('hex');let id;
-  if(old){id=old.id;run('UPDATE client_users SET display_name=?,password_salt=?,password_hash=? WHERE id=? AND enabled=0',name,salt,hashPassword(password,salt),id)}
-  else id=Number(run('INSERT INTO client_users(email,display_name,password_salt,password_hash,enabled) VALUES (?,?,?,?,0)',email,name,salt,hashPassword(password,salt)).lastInsertRowid);
+  if(old){id=old.id;run('UPDATE client_users SET display_name=?,password_salt=?,password_hash=?,country_code=?,phone_e164=?,preferred_locale=? WHERE id=? AND enabled=0',name,salt,hashPassword(password,salt),country,phone,locale,id)}
+  else id=Number(run('INSERT INTO client_users(email,display_name,password_salt,password_hash,enabled,country_code,phone_e164,preferred_locale) VALUES (?,?,?,?,0,?,?,?)',email,name,salt,hashPassword(password,salt),country,phone,locale).lastInsertRowid);
   const token=makeToken(id,'verify');
   try{await mail(email,'Confirme sua conta UNLOCKER Tools',`Para confirmar seu cadastro, acesse: ${process.env.APP_ORIGIN}/client/?view=verify&token=${token}\nEste link expira em 30 minutos.`)}
   catch(e){console.error('Registration email failed');return fail(res,503,'Não foi possível enviar o e-mail. Tente mais tarde')}
@@ -103,7 +108,7 @@ export function mountClientArea(app,db,{adminGuard}){
   }
   attempts.delete(ip);event(u.id,'client_login','success',req);const token=randomBytes(32).toString('hex');
   run('INSERT INTO client_sessions(token_hash,client_id,expires_at) VALUES (?,?,?)',digest(token),u.id,Date.now()+8*3600000);
-  res.setHeader('Set-Cookie',secureCookie(req,token,28800));res.json({id:u.id,email:u.email,display_name:u.display_name});
+  res.setHeader('Set-Cookie',secureCookie(req,token,28800));res.json({id:u.id,email:u.email,display_name:u.display_name,country_code:u.country_code,phone_e164:u.phone_e164,preferred_locale:u.preferred_locale});
  });
  router.post('/logout',(req,res)=>{const u=sessions(req);if(u)event(u.id,'client_logout','success',req);const t=cookie(req)[tokenKey];if(t)run('DELETE FROM client_sessions WHERE token_hash=?',digest(t));res.setHeader('Set-Cookie',secureCookie(req,'',0));res.json({ok:true})});
  router.get('/me',requireClient,(req,res)=>res.json(req.client));
