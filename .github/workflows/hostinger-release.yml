@@ -65,7 +65,7 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           set -euo pipefail
-          tar --exclude=.git --exclude=node_modules --exclude=data --exclude=backups --exclude=reports --exclude=dist -czf /tmp/websystem-release.tar.gz .
+          tar --exclude=.git --exclude=node_modules --exclude=data --exclude=backups --exclude=reports --exclude=dist --exclude=.env --exclude=.env.production -czf /tmp/websystem-release.tar.gz .
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes /tmp/websystem-release.tar.gz "$VPS_USER@$VPS_HOST:/tmp/websystem-release.tar.gz"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -s' < scripts/deploy-hostinger.sh
       - name: Public HTTPS smoke test
