@@ -160,6 +160,7 @@ if(existsSync(resolve(dist,'index.html'))){
  app.get('/login',(req,res)=>res.redirect(302,'/client/'));
  app.get('/services',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'services.html'))});
  app.get('/register',(req,res)=>res.redirect(302,'/client/?view=register'));
+ app.get('/consulta',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'consulta.html'))});
  app.get('/client/wallet',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'wallet.html'))});
  app.use(express.static(dist,{index:false,maxAge:'1h',setHeaders:(res,file)=>{if(/\\.html$/i.test(file))res.setHeader('Cache-Control','no-store')}}));
  app.get('/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'home.html'))});
