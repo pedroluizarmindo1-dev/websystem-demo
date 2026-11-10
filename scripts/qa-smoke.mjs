@@ -2,7 +2,7 @@
 import {spawn} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 const port=String(32000+Math.floor(Math.random()*1500));
-const child=spawn(process.execPath,['api/server.mjs'],{env:{...process.env,PORT:port,HOST:'127.0.0.1',WALLET_REQUESTS_ENABLED:'false',APP_ORIGIN:'https://unlockertools.tech'},stdio:'pipe'});
+const child=spawn(process.execPath,['api/server.mjs'],{env:{...process.env,PORT:port,HOST:'127.0.0.1',WALLET_REQUESTS_ENABLED:'false',APP_ORIGIN:'https://unlockertools.tech',ADMIN_ALLOWED_IPS:'127.0.0.1'},stdio:'pipe'});
 let stderr='';child.stderr.on('data',d=>stderr+=String(d).slice(-800));
 const base='http://127.0.0.1:'+port;
 try{
@@ -27,3 +27,4 @@ try{
   console.log('ORIGIN_REQUIRED',path,r.status);
  }
 }finally{child.kill('SIGTERM')}
+[exit status 0]
