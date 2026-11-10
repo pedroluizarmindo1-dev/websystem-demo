@@ -1,0 +1,65 @@
+name: WebSystem production post-deploy audit
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  production-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify public routes and access controls
+        run: |
+          set -euo pipefail
+          for path in / /services /client/ /client/orders /client/support /client/wallet /admin/ /api/health; do
+            code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://unlockertools.tech$path")
+            echo "PUBLIC_ROUTE $path $code"
+            test "$code" = 200
+          done
+          for path in /api/client/wallet /api/admin/wallet/deposits /api/auth/me; do
+            code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://unlockertools.tech$path")
+            echo "PROTECTED_ROUTE $path $code"
+            test "$code" = 401
+          done
+      - name: Validate server identity and SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for key in VPS_HOST VPS_USER VPS_SSH_KEY VPS_SSH_KNOWN_HOSTS; do
+            test -n "${!key}" || { echo "::error::Missing $key"; exit 1; }
+          done
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Audit running production container without changing data
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/websystem
+          docker compose config -q
+          docker compose ps --status running --services | grep -qx websystem
+          docker compose exec -T websystem node --input-type=module -e '
+          import {DatabaseSync} from "node:sqlite";
+          if(process.env.WALLET_REQUESTS_ENABLED==="true")throw Error("Wallet requests enabled");
+          console.log("WALLET_DISABLED");
+          for(const name of ["auth.sqlite","websystem.sqlite"]){
+            const db=new DatabaseSync("/app/data/"+name,{readOnly:true});
+            try{
+              if(db.prepare("PRAGMA integrity_check").get()?.integrity_check!=="ok")throw Error(name+" integrity failed");
+              console.log("DATABASE_INTEGRITY_OK",name);
+            }finally{db.close()}
+          }
+          const health=await fetch("http://127.0.0.1:3100/api/health");
+          if(!health.ok)throw Error("Internal health check failed");
+          console.log("INTERNAL_HEALTH_OK");
+          '
+          REMOTE
