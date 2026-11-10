@@ -11,7 +11,7 @@ const tokenKey='ws_client';
 const secureCookie=(req,token,maxAge)=>tokenKey+'='+token+'; HttpOnly; SameSite=Lax; Path=/api/client; Max-Age='+maxAge+(process.env.COOKIE_SECURE==='true'?'; Secure':'');
 const hashPassword=(password,salt)=>scryptSync(password,salt,64).toString('hex');
 const mailReady=()=>['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','MAIL_FROM'].every(k=>process.env[k]);
-const transport=()=>nodemailer.createTransport({host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT),secure:Number(process.env.SMTP_PORT)===465,auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASS},requireTLS:Number(process.env.SMTP_PORT)!==465});
+const transport=()=>nodemailer.createTransport({host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT),secure:Number(process.env.SMTP_PORT)===465,auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASS},requireTLS:Number(process.env.SMTP_PORT)!==465,connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000});
 export function mountClientArea(app,db,{adminGuard}){
  db.exec(`CREATE TABLE IF NOT EXISTS client_users(
  id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -34,6 +34,10 @@ export function mountClientArea(app,db,{adminGuard}){
  last_error TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,sent_at TEXT);
  CREATE INDEX IF NOT EXISTS idx_client_sessions_exp ON client_sessions(expires_at);
  CREATE INDEX IF NOT EXISTS idx_mail_outbox_status ON mail_outbox(status,id);`);
+ db.exec(`CREATE TABLE IF NOT EXISTS client_auth_tokens(
+ token_hash TEXT PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES client_users(id) ON DELETE CASCADE,
+ purpose TEXT NOT NULL CHECK(purpose IN ('verify','reset')),expires_at INTEGER NOT NULL);
+ CREATE INDEX IF NOT EXISTS idx_client_auth_tokens_exp ON client_auth_tokens(expires_at);`);
  db.exec(`CREATE TABLE IF NOT EXISTS client_security_events(id INTEGER PRIMARY KEY,client_id INTEGER,action TEXT NOT NULL,outcome TEXT NOT NULL,ip TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
  const event=(id,action,outcome,req)=>{try{db.prepare('INSERT INTO client_security_events(client_id,action,outcome,ip) VALUES (?,?,?,?)').run(id||null,action,outcome,String(req.ip||'unknown').slice(0,90))}catch(e){console.error('Client audit write failed:',e.message)}};
  const q=(sql,...args)=>db.prepare(sql).get(...args),all=(sql,...args)=>db.prepare(sql).all(...args),run=(sql,...args)=>db.prepare(sql).run(...args);
@@ -43,8 +47,48 @@ export function mountClientArea(app,db,{adminGuard}){
  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');next()});
  const sessions=req=>{const t=cookie(req)[tokenKey];if(!t||!/^[a-f0-9]{64}$/.test(t))return null;return q('SELECT u.id,u.email,u.display_name FROM client_sessions s JOIN client_users u ON u.id=s.client_id WHERE s.token_hash=? AND s.expires_at>? AND u.enabled=1',digest(t),Date.now())};
  const requireClient=(req,res,next)=>{const u=sessions(req);if(!u)return fail(res,401,'Autenticação necessária');req.client=u;next()};
+ const flowLimits=new Map();
+ const limited=(name,max,windowMs)=>(req,res,next)=>{const now=Date.now(),key=name+':'+req.ip;let x=flowLimits.get(key);if(!x||x.until<now)x={n:0,until:now+windowMs};flowLimits.set(key,x);if(x.n++>=max)return fail(res,429,'Aguarde antes de tentar novamente');if(flowLimits.size>5000)for(const [k,v] of flowLimits)if(v.until<now)flowLimits.delete(k);next()};
+ const mail=(to,subject,body)=>transport().sendMail({from:process.env.MAIL_FROM,to,subject,text:body});
+ const makeToken=(id,purpose)=>{const token=randomBytes(32).toString('hex');run('DELETE FROM client_auth_tokens WHERE client_id=? AND purpose=?',id,purpose);run('INSERT INTO client_auth_tokens(token_hash,client_id,purpose,expires_at) VALUES (?,?,?,?)',digest(token),id,purpose,Date.now()+30*60000);return token};
+ router.post('/register',limited('register',5,3600000),async(req,res)=>{
+  if(!mailReady())return fail(res,503,'Cadastro indisponível temporariamente');
+  const email=String(req.body?.email||'').trim().toLowerCase(),name=String(req.body?.display_name||'').trim(),password=req.body?.password;
+  if(!validEmail(email)||!name||name.length>120||!safePassword(password))return fail(res,400,'Informe nome, e-mail e senha de pelo menos 16 caracteres');
+  const old=q('SELECT id,enabled FROM client_users WHERE email=?',email);
+  if(old?.enabled)return res.json({ok:true,message:'Se o cadastro puder ser realizado, você receberá um e-mail'});
+  const salt=randomBytes(24).toString('hex');let id;
+  if(old){id=old.id;run('UPDATE client_users SET display_name=?,password_salt=?,password_hash=? WHERE id=? AND enabled=0',name,salt,hashPassword(password,salt),id)}
+  else id=Number(run('INSERT INTO client_users(email,display_name,password_salt,password_hash,enabled) VALUES (?,?,?,?,0)',email,name,salt,hashPassword(password,salt)).lastInsertRowid);
+  const token=makeToken(id,'verify');
+  try{await mail(email,'Confirme sua conta UNLOCKER Tools',`Para confirmar seu cadastro, acesse: ${process.env.APP_ORIGIN}/client/?view=verify&token=${token}\nEste link expira em 30 minutos.`)}
+  catch(e){console.error('Registration email failed');return fail(res,503,'Não foi possível enviar o e-mail. Tente mais tarde')}
+  event(id,'client_register','pending_verification',req);res.status(202).json({ok:true,message:'Confira seu e-mail para confirmar a conta'});
+ });
+ router.post('/verify-email',limited('verify',12,900000),(req,res)=>{
+  const token=String(req.body?.token||'');if(!/^[a-f0-9]{64}$/.test(token))return fail(res,400,'Link inválido');
+  const row=q("SELECT client_id FROM client_auth_tokens WHERE token_hash=? AND purpose='verify' AND expires_at>?",digest(token),Date.now());
+  if(!row)return fail(res,400,'Link inválido ou expirado');
+  db.exec('BEGIN IMMEDIATE');try{run('UPDATE client_users SET enabled=1 WHERE id=?',row.client_id);run('DELETE FROM client_auth_tokens WHERE client_id=?',row.client_id);db.exec('COMMIT')}catch(e){db.exec('ROLLBACK');throw e}
+  event(row.client_id,'client_verify','success',req);res.json({ok:true});
+ });
+ router.post('/forgot-password',limited('forgot',5,3600000),async(req,res)=>{
+  if(!mailReady())return fail(res,503,'Recuperação indisponível temporariamente');
+  const email=String(req.body?.email||'').trim().toLowerCase();if(!validEmail(email))return fail(res,400,'E-mail inválido');
+  const u=q('SELECT id FROM client_users WHERE email=? AND enabled=1',email);
+  if(u){const token=makeToken(u.id,'reset');try{await mail(email,'Recuperação de senha UNLOCKER Tools',`Para definir uma nova senha, acesse: ${process.env.APP_ORIGIN}/client/?view=reset&token=${token}\nEste link expira em 30 minutos.`)}catch(e){console.error('Password reset email failed')}}
+  res.json({ok:true,message:'Se existir uma conta, enviaremos instruções ao e-mail cadastrado'});
+ });
+ router.post('/reset-password',limited('reset',8,900000),(req,res)=>{
+  const token=String(req.body?.token||''),password=req.body?.password;
+  if(!/^[a-f0-9]{64}$/.test(token)||!safePassword(password))return fail(res,400,'Link inválido ou senha com menos de 16 caracteres');
+  const row=q("SELECT client_id FROM client_auth_tokens WHERE token_hash=? AND purpose='reset' AND expires_at>?",digest(token),Date.now());
+  if(!row)return fail(res,400,'Link inválido ou expirado');
+  const salt=randomBytes(24).toString('hex');db.exec('BEGIN IMMEDIATE');try{run('UPDATE client_users SET password_salt=?,password_hash=? WHERE id=?',salt,hashPassword(password,salt),row.client_id);run('DELETE FROM client_auth_tokens WHERE client_id=?',row.client_id);run('DELETE FROM client_sessions WHERE client_id=?',row.client_id);db.exec('COMMIT')}catch(e){db.exec('ROLLBACK');throw e}
+  event(row.client_id,'client_password_reset','success',req);res.json({ok:true});
+ });
  const attempts=new Map();
- router.post('/login',(req,res)=>{
+ router.post('/login',limited('login',25,900000),(req,res)=>{
   const email=String(req.body?.email||'').trim().toLowerCase(),password=req.body?.password;
   const ip=req.ip||req.socket.remoteAddress||'unknown',now=Date.now(),entry=attempts.get(ip)||{n:0,until:0};
   if(entry.until>now){event(null,'client_login','rate_limited',req);return fail(res,429,'Tente novamente mais tarde')}
@@ -116,3 +160,4 @@ export function mountClientArea(app,db,{adminGuard}){
  });
  app.use('/api/admin/client-area',admin);
 }
+[exit status 0]
