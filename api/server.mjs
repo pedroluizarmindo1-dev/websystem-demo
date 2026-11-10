@@ -166,4 +166,3 @@ if(existsSync(resolve(dist,'index.html'))){
  app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});return res.status(404).send('Página não encontrada')});
 }
 app.listen(port,host,()=>console.log('WebSystem production: http://'+host+':'+port));
-[exit status 0]
