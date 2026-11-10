@@ -35,6 +35,7 @@ try{
     if(child.error||child.status!==0)throw Error((child.stderr||child.stdout||child.error?.message||'smoke failure').slice(-1000));
     return child.stdout.trim().slice(-600);
   });
+  attempt('QA','isolated authenticated non-admin RBAC',()=>run('node',['scripts/qa-rbac-isolated.mjs'],45000));
   // 5. Debugger: log failed checks, no unreviewed production hotfix.
   const failed=report.agents.filter(x=>x.status==='FAIL');
   record('Debugger','failure triage',failed.length?'BLOCKED':'PASS',failed.length?failed.map(x=>x.task).join(', '):'No failed preflight checks');
