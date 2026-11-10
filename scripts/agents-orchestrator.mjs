@@ -61,4 +61,3 @@ finally{
   mkdirSync(resolve(root,'reports'),{recursive:true});writeFileSync(resolve(root,'reports','agents-latest.json'),JSON.stringify(report,null,2)+'\n');
   console.log('REPORT reports/agents-latest.json');if(state.failed)process.exitCode=1;
 }
-[exit status 0]
