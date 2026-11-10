@@ -53,3 +53,18 @@ body.ut-secondary{background:radial-gradient(ellipse at 75% 0%,#12351f 0%,transp
 .ut-premium .hero{overflow:clip}
 .ut-premium .hero:after{pointer-events:none}
 @media(max-width:540px){.ut-premium .hero:after{display:none}}
+
+/* Storefront phase 1: rounded cyan storefront, accessible reduced-motion support */
+:root{--ut-accent:#2dd4bf}
+.ut-catalog-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:24px 0}
+.ut-catalog-controls label{font-size:13px;color:#a6c5be}
+.ut-catalog-controls input,.ut-catalog-controls select{width:100%;min-width:0;padding:14px 16px;border:1px solid #31514a;border-radius:16px;background:#111b19;color:#f2faf8;font:inherit}
+.ut-catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:16px;margin:22px 0}
+.ut-catalog-card{background:#111a18;border:1px solid #29463f;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:12px;transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease;min-width:0}
+.ut-catalog-card:hover{transform:translateY(-4px);border-color:#2dd4bf;box-shadow:0 12px 35px #2dd4bf16}
+.ut-catalog-card h3{font-size:18px;line-height:1.35;margin:0;overflow-wrap:anywhere}
+.ut-catalog-card p{color:#a8c4bb;margin:0;overflow-wrap:anywhere}.ut-catalog-card small{color:#b7d4ca}
+.ut-catalog-category{color:#2dd4bf;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.ut-catalog-login{margin-top:auto;color:#2dd4bf;font-weight:700;text-decoration:underline;text-underline-offset:4px}
+@media(max-width:520px){.ut-catalog-controls{grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.ut-catalog-card{transition:none}.ut-catalog-card:hover{transform:none}}
