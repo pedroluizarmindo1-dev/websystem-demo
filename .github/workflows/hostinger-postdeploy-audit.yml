@@ -21,6 +21,14 @@ jobs:
             echo "PROTECTED_ROUTE $path $code"
             test "$code" = 401
           done
+      - name: Verify public security response headers
+        run: |
+          set -euo pipefail
+          headers=$(curl -fsSI --max-time 15 https://unlockertools.tech/)
+          printf '%s\\n' "$headers" | grep -Eiq '^x-content-type-options:[[:space:]]*nosniff'
+          printf '%s\\n' "$headers" | grep -Eiq '^x-frame-options:[[:space:]]*DENY'
+          printf '%s\\n' "$headers" | grep -Eiq '^referrer-policy:'
+          echo "BASIC_SECURITY_HEADERS_OK"
       - name: Validate server identity and SSH
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
