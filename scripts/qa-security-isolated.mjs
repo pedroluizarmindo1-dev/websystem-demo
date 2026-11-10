@@ -21,4 +21,3 @@ try{
  await check('/api/client/login',429,{email:'no-account@example.com',password:'wrong-password'});
  console.log('SECURITY_ISOLATED_PASS: admin fail-closed, SMTP fail-closed, reset token validation, auth IP lockout');
 }finally{if(child){child.kill();await delay(150)}rmSync(temp,{recursive:true,force:true})}
-[exit status 0]
