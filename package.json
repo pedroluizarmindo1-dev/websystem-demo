@@ -7,7 +7,8 @@
     "dev:web": "vite --host 0.0.0.0",
     "build": "vite build",
     "start": "node api/server.mjs",
-    "inspect:web": "node scripts/web-inspector.mjs"
+    "inspect:web": "node scripts/web-inspector.mjs",
+    "inspect:ux": "node scripts/ux-ui-inspector.mjs"
   },
   "dependencies": {
     "concurrently": "^9.2.1",
