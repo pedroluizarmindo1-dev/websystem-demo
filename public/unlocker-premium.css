@@ -68,3 +68,18 @@ body.ut-secondary{background:radial-gradient(ellipse at 75% 0%,#12351f 0%,transp
 .ut-catalog-login{margin-top:auto;color:#2dd4bf;font-weight:700;text-decoration:underline;text-underline-offset:4px}
 @media(max-width:520px){.ut-catalog-controls{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.ut-catalog-card{transition:none}.ut-catalog-card:hover{transform:none}}
+
+/* Phase 2: cyan identity, account controls, rounded fields and accessible motion */
+:root{--ut-accent:#2dd4bf;--ut-border:#294942;--ut-blue:#2dd4bf}
+.ut-premium,.ut-client,.ut-secondary{accent-color:#2dd4bf}
+.ut-premium .btn.primary,.ut-client button,.ut-secondary button{border-radius:15px}
+.ut-client section,.ut-client input,.ut-client select,.ut-client textarea,.ut-client button{border-radius:18px}
+.ut-client #accountFields{display:grid;gap:12px}.ut-client #accountFields label{display:grid;gap:7px}
+.ut-client #accountFields input,.ut-client #accountFields select{width:100%;padding:13px;border:1px solid #31534d;background:#101b19;color:#f1fafa}
+.ut-language-label{display:flex;align-items:center;gap:8px;font-size:12px;color:#b4d1ca}
+.ut-language{border:1px solid #365d56;border-radius:13px;background:#10201c;color:#d5f7f0;padding:9px;max-width:135px}
+.ut-user-link{display:grid;place-items:center;width:43px;height:43px;flex-shrink:0;border:1px solid #365d56;border-radius:15px;color:#2dd4bf;background:#10201c}
+.ut-user-link:hover{border-color:#2dd4bf;box-shadow:0 0 18px #2dd4bf25}
+@media(min-width:720px){.ut-reveal{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}.ut-reveal.ut-visible{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.ut-reveal{opacity:1!important;transform:none!important;transition:none!important}}
+@media(max-width:650px){.ut-premium .header-inner{flex-wrap:wrap}.ut-language-label{font-size:11px}.ut-language{max-width:110px}.ut-user-link{width:38px;height:38px}}
