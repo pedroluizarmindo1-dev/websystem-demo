@@ -11,7 +11,7 @@ try{
     await page.setViewport({width,height:850,deviceScaleFactor:1});
     const errors=[];
     page.on('pageerror',e=>errors.push(e.message));
-    const response=await page.goto(base,{waitUntil:'networkidle2',timeout:60000});
+    const response=await page.goto(base+'/admin/',{waitUntil:'networkidle2',timeout:60000});
     check([200,304].includes(response?.status()),`HTTP 200 · viewport ${width}px`);
     check(errors.length===0,`Sem erros JavaScript · ${width}px${errors.length?' ('+errors.join('; ')+')':''}`);
     check(await page.evaluate(()=>[...document.querySelectorAll('h2')].some(x=>x.textContent.includes('Entrar na conta'))),`Login renderizado · ${width}px`);
