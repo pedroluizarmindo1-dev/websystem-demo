@@ -1,0 +1,26 @@
+services:
+  websystem:
+    build: .
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: "3100"
+      HOST: "0.0.0.0"
+      COOKIE_SECURE: "true"
+      DATA_DIR: /app/data
+      DEMO_MODE: "false"
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - websystem_data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+volumes:
+  websystem_data:
