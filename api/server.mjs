@@ -122,6 +122,14 @@ if(existsSync(resolve(dist,'index.html'))){
  app.get('/painel.html',(req,res)=>res.redirect(308,'/admin/'));
  app.get('/admin',(req,res,next)=>req.path==='/admin'?res.redirect(308,'/admin/'):next());
  app.get('/admin/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
+ // Named routes share the existing protected applications until dedicated modules are ready.
+ app.get(['/admin/users','/admin/services','/admin/orders','/admin/settings','/admin/audit'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
+ app.get('/client',(req,res)=>res.redirect(308,'/client/'));
+ app.get(['/client/','/client/orders','/client/support'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'cliente.html'))});
+ app.get('/login',(req,res)=>res.redirect(302,'/client/'));
+ app.get('/services',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'services.html'))});
+ app.get('/register',(req,res)=>res.status(503).send('Cadastro público ainda indisponível. Solicite acesso ao suporte.') );
+ app.get('/client/wallet',(req,res)=>res.status(503).send('Carteira ainda não disponível. Nenhum pagamento é processado nesta página.') );
  app.use(express.static(dist,{index:false,maxAge:'1h',setHeaders:(res,file)=>{if(/\\.html$/i.test(file))res.setHeader('Cache-Control','no-store')}}));
  app.get('/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'home.html'))});
  app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});return res.status(404).send('Página não encontrada')});
