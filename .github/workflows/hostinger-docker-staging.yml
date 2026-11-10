@@ -1,0 +1,42 @@
+name: WebSystem release Docker staging
+on:
+  push:
+    branches: [release/client-build-2026-11-10]
+    paths: ['Dockerfile', 'compose.yaml', 'api/**', 'src/**', 'public/**', 'scripts/**', '.github/workflows/hostinger-docker-staging.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-audit --no-fund
+      - name: Security and isolated functional tests
+        run: |
+          npm audit --omit=dev --audit-level=high
+          node scripts/qa-rbac-isolated.mjs
+          node scripts/qa-client-isolated.mjs
+      - name: Build production container
+        run: docker build -t websystem:release .
+      - name: Start isolated staging container (payments disabled)
+        run: docker run -d --name websystem-staging -e HOST=0.0.0.0 -e PORT=3100 -e WALLET_REQUESTS_ENABLED=false -e DEMO_MODE=false -p 127.0.0.1:3100:3100 websystem:release
+      - name: Container health and route checks
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3100/api/health; then break; fi
+            if [ "$i" = 30 ]; then docker logs websystem-staging; exit 1; fi
+            sleep 2
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/admin/)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/client/)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/orders)" = 401
+          docker exec websystem-staging node -e "if(process.env.WALLET_REQUESTS_ENABLED==='true')process.exit(1)"
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs websystem-staging || true
