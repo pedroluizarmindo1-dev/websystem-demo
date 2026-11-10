@@ -36,7 +36,7 @@ export function mountClientArea(app,db,{adminGuard}){
  CREATE INDEX IF NOT EXISTS idx_mail_outbox_status ON mail_outbox(status,id);`);
  const q=(sql,...args)=>db.prepare(sql).get(...args),all=(sql,...args)=>db.prepare(sql).all(...args),run=(sql,...args)=>db.prepare(sql).run(...args);
  const router=Router();
- const originGuard=(req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)){const origin=req.headers.origin;const expected=process.env.APP_ORIGIN;if(origin&&(!expected||origin!==expected))return fail(res,403,'Origem não autorizada')}next()};
+ const originGuard=(req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)){const origin=req.headers.origin;const expected=process.env.APP_ORIGIN;if(!expected||origin!==expected)return fail(res,403,'Origem não autorizada')}next()};
  router.use(originGuard);
  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');next()});
  const sessions=req=>{const t=cookie(req)[tokenKey];if(!t||!/^[a-f0-9]{64}$/.test(t))return null;return q('SELECT u.id,u.email,u.display_name FROM client_sessions s JOIN client_users u ON u.id=s.client_id WHERE s.token_hash=? AND s.expires_at>? AND u.enabled=1',digest(t),Date.now())};
