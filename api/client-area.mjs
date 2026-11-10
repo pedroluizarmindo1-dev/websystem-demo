@@ -160,4 +160,3 @@ export function mountClientArea(app,db,{adminGuard}){
  });
  app.use('/api/admin/client-area',admin);
 }
-[exit status 0]
