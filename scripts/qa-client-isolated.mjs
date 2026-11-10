@@ -14,7 +14,7 @@ try{
  mkdirSync(join(dir,'data'));symlinkSync(join(root,'node_modules'),join(dir,'node_modules'),'dir');
  const {DatabaseSync}=await import('node:sqlite');
  const db=new DatabaseSync(join(dir,'data','websystem.sqlite'));
- db.exec((await import('node:fs')).readFileSync(join(dir,'api/schema.sql'),'utf8'));
+ db.exec((await import('node:fs')).readFileSync(join(dir,'api/schema.sql'),'utf8'));\n db.exec('PRAGMA busy_timeout=15000');
  // Client schema is created by server on startup; seed after startup.
  const port=String(36000+Math.floor(Math.random()*1000)),origin='https://unlockertools.tech',base='http://127.0.0.1:'+port;
  child=spawn(process.execPath,[join(dir,'api/server.mjs')],{cwd:dir,env:{...process.env,HOST:'127.0.0.1',PORT:port,APP_ORIGIN:origin,WALLET_REQUESTS_ENABLED:'false'},stdio:'pipe'});
