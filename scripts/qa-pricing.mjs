@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {priceService} from '../api/pricing.mjs';
 const check=(name,expected)=>{const p=priceService({name,category:'GSM Services',price_usd:10},5.5);assert.equal(p.selling_brl,expected,`${name} => ${p.category}`)};
 check('Server Tool Credits Activation',57.5);
+check('DT Pro Tool Add 10 Credit',80);
 check('Rental Tool 24h',72);
 check('FMI OFF iPhone',105);
 check('iCloud removal',105);
