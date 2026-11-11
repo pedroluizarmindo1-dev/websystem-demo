@@ -1,3 +1,4 @@
+import {hostingerMailReady,sendHostingerMail,getHostingerMailbox} from './hostinger-mail.mjs';
 import {randomBytes,scryptSync,timingSafeEqual,createHash} from 'node:crypto';
 import {Router} from 'express';
 import nodemailer from 'nodemailer';
@@ -10,7 +11,8 @@ const cookie=req=>Object.fromEntries((req.headers.cookie||'').split(';').map(v=>
 const tokenKey='ws_client';
 const secureCookie=(req,token,maxAge)=>tokenKey+'='+token+'; HttpOnly; SameSite=Lax; Path=/api/client; Max-Age='+maxAge+(process.env.COOKIE_SECURE==='true'?'; Secure':'');
 const hashPassword=(password,salt)=>scryptSync(password,salt,64).toString('hex');
-const mailReady=()=>['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','MAIL_FROM'].every(k=>process.env[k]);
+const smtpReady=()=>['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','MAIL_FROM'].every(k=>process.env[k]);
+const mailReady=()=>hostingerMailReady()||smtpReady();
 const transport=()=>nodemailer.createTransport({host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT),secure:Number(process.env.SMTP_PORT)===465,auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASS},requireTLS:Number(process.env.SMTP_PORT)!==465,connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000});
 export function mountClientArea(app,db,{adminGuard}){
  db.exec(`CREATE TABLE IF NOT EXISTS client_users(
@@ -52,7 +54,7 @@ export function mountClientArea(app,db,{adminGuard}){
  const requireClient=(req,res,next)=>{const u=sessions(req);if(!u)return fail(res,401,'Autenticação necessária');req.client=u;next()};
  const flowLimits=new Map();
  const limited=(name,max,windowMs)=>(req,res,next)=>{const now=Date.now(),key=name+':'+req.ip;let x=flowLimits.get(key);if(!x||x.until<now)x={n:0,until:now+windowMs};flowLimits.set(key,x);if(x.n++>=max)return fail(res,429,'Aguarde antes de tentar novamente');if(flowLimits.size>5000)for(const [k,v] of flowLimits)if(v.until<now)flowLimits.delete(k);next()};
- const mail=(to,subject,body)=>transport().sendMail({from:process.env.MAIL_FROM,to,subject,text:body});
+ const mail=(to,subject,body)=>hostingerMailReady()?sendHostingerMail(to,subject,body):transport().sendMail({from:process.env.MAIL_FROM,to,subject,text:body});
  const makeToken=(id,purpose)=>{const token=randomBytes(32).toString('hex');run('DELETE FROM client_auth_tokens WHERE client_id=? AND purpose=?',id,purpose);run('INSERT INTO client_auth_tokens(token_hash,client_id,purpose,expires_at) VALUES (?,?,?,?)',digest(token),id,purpose,Date.now()+30*60000);return token};
  router.post('/register',limited('register',5,3600000),async(req,res)=>{
   if(!mailReady())return fail(res,503,'Cadastro indisponível temporariamente');
@@ -146,7 +148,7 @@ export function mountClientArea(app,db,{adminGuard}){
   const r=run('INSERT INTO mail_outbox(recipient,subject,body) VALUES (?,?,?)',recipient,subject,body);
   event(null,'admin_mail_queue','success',req);res.status(201).json({id:Number(r.lastInsertRowid),status:'pending'});
  });
- admin.get('/mail/status',(req,res)=>res.json({configured:!!mailReady(),counts:all('SELECT status,COUNT(*) AS count FROM mail_outbox GROUP BY status')}));
+ admin.get('/mail/status',(req,res)=>res.json({configured:!!mailReady(),provider:hostingerMailReady()?'hostinger-api':smtpReady()?'smtp':'none',counts:all('SELECT status,COUNT(*) AS count FROM mail_outbox GROUP BY status')}));
  let sending=false;
  admin.post('/mail/send-pending',async(req,res)=>{
   if(sending)return fail(res,409,'Envio em andamento');
