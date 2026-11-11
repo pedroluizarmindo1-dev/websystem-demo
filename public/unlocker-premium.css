@@ -87,3 +87,9 @@ body.ut-secondary{background:radial-gradient(ellipse at 75% 0%,#12351f 0%,transp
 /* Trust, onboarding and disclosure sections */
 .ut-trust-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px;margin:22px 0}
 .ut-faq{display:grid;gap:12px}.ut-faq details{background:#101b19;border:1px solid #2c5048;border-radius:18px;padding:18px 22px}.ut-faq summary{cursor:pointer;font-weight:700;color:#e3f9f5}.ut-faq details p{margin:14px 0 0;color:#b4cfc8;line-height:1.65}.ut-faq summary:focus-visible{outline:2px solid #2dd4bf;outline-offset:5px}.ut-status-row{display:flex;align-items:center;flex-wrap:wrap;gap:14px;border:1px solid #38504b;border-radius:20px;padding:22px;background:#121c1a}.ut-status-row span:last-child,.ut-note{color:#b3c8c2}.ut-status-dot{width:10px;height:10px;border-radius:50%;background:#b8b8b8}.site-footer a{color:#9be8db;text-decoration:underline;text-underline-offset:3px}
+
+/* Commercial WhatsApp contact — user-provided number */
+.ut-whatsapp{position:fixed;right:20px;bottom:22px;z-index:70;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:#25d366;color:#082317!important;font-weight:800;font-size:14px;box-shadow:0 9px 35px #0008;border:1px solid #8bf1b0;transition:transform .2s ease,box-shadow .2s ease;text-decoration:none!important}
+.ut-whatsapp:hover{transform:translateY(-3px);box-shadow:0 12px 42px #25d36645}.ut-whatsapp:focus-visible{outline:3px solid #fff;outline-offset:4px}
+@media(max-width:520px){.ut-whatsapp{right:14px;bottom:16px;padding:12px;border-radius:50%}.ut-whatsapp span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}}
+@media(prefers-reduced-motion:reduce){.ut-whatsapp{transition:none}.ut-whatsapp:hover{transform:none}}
