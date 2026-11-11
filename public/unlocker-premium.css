@@ -93,3 +93,5 @@ body.ut-secondary{background:radial-gradient(ellipse at 75% 0%,#12351f 0%,transp
 .ut-whatsapp:hover{transform:translateY(-3px);box-shadow:0 12px 42px #25d36645}.ut-whatsapp:focus-visible{outline:3px solid #fff;outline-offset:4px}
 @media(max-width:520px){.ut-whatsapp{right:14px;bottom:16px;padding:12px;border-radius:50%}.ut-whatsapp span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}}
 @media(prefers-reduced-motion:reduce){.ut-whatsapp{transition:none}.ut-whatsapp:hover{transform:none}}
+
+.ut-catalog-price{display:block;color:#2DD4BF;font-size:1.12rem;font-weight:800;margin:10px 0 4px;font-variant-numeric:tabular-nums}
