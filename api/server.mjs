@@ -100,12 +100,19 @@ app.get('/api/integrations/imeive/status',integrationAdmin,async(req,res)=>{
  catch(e){res.status(502).json({connected:false,error:e.message})}
 });
 let supplierSyncRunning=false;
+let lastSupplierSync={status:'not_started',checked_at:null,imported:0};
+async function performSupplierSync(){
+ if(supplierSyncRunning)return {status:'already_running'};
+ supplierSyncRunning=true;
+ try{const result=await syncSupplier(db);lastSupplierSync={status:'ok',checked_at:result.checked_at,imported:result.imported};console.log('IMEIVE_SYNC_OK',result.imported);return result}
+ catch(e){lastSupplierSync={status:'error',checked_at:new Date().toISOString(),imported:0,error:String(e.message).slice(0,130)};console.error('IMEIVE_SYNC_FAILED',lastSupplierSync.error);throw e}
+ finally{supplierSyncRunning=false}
+}
+app.get('/api/public/catalog-sync-status',(req,res)=>{res.setHeader('Cache-Control','no-store');res.json({supplier:lastSupplierSync.status,last_checked_at:lastSupplierSync.checked_at,imported:lastSupplierSync.imported,available_supplier_services:get("SELECT COUNT(*) AS n FROM services WHERE source='imeive' AND available=1")?.n||0})});
 app.post('/api/integrations/imeive/sync',integrationAdmin,async(req,res)=>{
  if(supplierSyncRunning)return res.status(409).json({error:'Sincronização em andamento'});
- supplierSyncRunning=true;
- try{const result=await syncSupplier(db);res.json({ok:true,...result})}
+ try{const result=await performSupplierSync();res.json({ok:true,...result})}
  catch(e){res.status(502).json({ok:false,error:e.message})}
- finally{supplierSyncRunning=false}
 });
 // Public storefront exposes ONLY allowlisted descriptive fields, never prices or supplier IDs.
 app.get('/api/public/catalog',rateLimit({max:90,windowMs:60000,keyPrefix:'public-catalog'}),(req,res)=>{
@@ -115,9 +122,11 @@ app.get('/api/public/catalog',rateLimit({max:90,windowMs:60000,keyPrefix:'public
  const where=["(available=1 OR source='telegram-announcement')"];const params=[];
  if(query){where.push('(name LIKE ? OR category LIKE ? OR brand LIKE ? OR model LIKE ?)');params.push(...Array(4).fill('%'+query+'%'))}
  if(category){where.push('category=?');params.push(category)}
- const services=all(`SELECT id,name,category,brand,model,eta,CASE WHEN available=1 THEN 'confirmed' ELSE 'reference_only' END AS availability,CASE WHEN source='imeive' THEN 'imeive' WHEN source='telegram-announcement' THEN 'public_announcement' ELSE 'manual' END AS catalog_source FROM services WHERE ${where.join(' AND ')} ORDER BY updated_at DESC,id DESC LIMIT ?`,...params,limit);
+ const services=all(`SELECT id,name,category,brand,model,eta,price_usd,CASE WHEN available=1 THEN 'confirmed' ELSE 'reference_only' END AS availability,CASE WHEN source='imeive' THEN 'imeive' WHEN source='telegram-announcement' THEN 'public_announcement' ELSE 'manual' END AS catalog_source FROM services WHERE ${where.join(' AND ')} ORDER BY updated_at DESC,id DESC LIMIT ?`,...params,limit);
+ const rate=get('SELECT rate FROM exchange_rates ORDER BY id DESC LIMIT 1')?.rate;
+ const listed=services.map(({price_usd,...service})=>({...service,...(service.catalog_source==='imeive'&&rate>0?{price_brl:priceService({...service,price_usd},rate).selling_brl,currency:'BRL'}:{})}));
  const categories=all("SELECT category,COUNT(*) AS total FROM services WHERE available=1 OR source='telegram-announcement' GROUP BY category ORDER BY total DESC LIMIT 40");
- res.setHeader('Cache-Control','public, max-age=60');res.json({services,categories});
+ res.setHeader('Cache-Control','public, max-age=60');res.json({services:listed,categories});
 });
 // All application data requires login, including catalog and prices.
 // Legacy management endpoints are admin-only until finer-grained RBAC is implemented.
@@ -153,6 +162,12 @@ app.post('/api/remote-sessions/:id/messages',adminOnly,wrap((req,res)=>{const {s
 app.get('/api/audit-logs',adminOnly,wrap((req,res)=>res.json(all('SELECT * FROM audit_logs ORDER BY id DESC LIMIT 100'))));
 async function refreshRate(){for(const provider of ['AwesomeAPI','Frankfurter']){try{let rate;if(provider==='AwesomeAPI'){const r=await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL',{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();rate=Number(data.USDBRL?.bid)}else{const r=await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=BRL',{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();rate=Number(data.rates?.BRL)}if(!(rate>0))throw Error('Cotação inválida');run('INSERT INTO exchange_rates(base,quote,rate,provider) VALUES (?,?,?,?)','USD','BRL',rate,provider);console.log('Cotação atualizada:',rate,provider);return}catch(e){console.error(provider+' indisponível:',e.message)}}}
 refreshRate();setInterval(refreshRate,30*60*1000).unref();
+// Supplier sync is fail-closed: previous verified records stay intact on network/API errors.
+// First refresh after startup, then every 6 hours; no supplier secrets in logs.
+if(process.env.IMEIVE_API_URL&&process.env.IMEIVE_API_USERNAME&&process.env.IMEIVE_API_KEY){
+ setTimeout(()=>performSupplierSync().catch(()=>{}),20000).unref();
+ setInterval(()=>performSupplierSync().catch(()=>{}),6*60*60*1000).unref();
+}
 if(process.env.DEMO_MODE==='true'){
   // Full historical import on demo startup; hourly refresh of new announcements.
   setTimeout(()=>syncEntireCatalog(db).catch(e=>console.error('Telegram import:',e.message)),2500).unref();
