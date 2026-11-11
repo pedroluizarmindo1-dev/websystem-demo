@@ -112,11 +112,11 @@ app.get('/api/public/catalog',rateLimit({max:90,windowMs:60000,keyPrefix:'public
  const query=String(req.query.q||'').trim().slice(0,80);
  const category=String(req.query.category||'').trim().slice(0,80);
  const limit=Math.min(60,Math.max(1,Number.parseInt(req.query.limit,10)||24));
- const where=['available=1'];const params=[];
+ const where=["(available=1 OR source='telegram-announcement')"];const params=[];
  if(query){where.push('(name LIKE ? OR category LIKE ? OR brand LIKE ? OR model LIKE ?)');params.push(...Array(4).fill('%'+query+'%'))}
  if(category){where.push('category=?');params.push(category)}
- const services=all(`SELECT id,name,category,brand,model,eta FROM services WHERE ${where.join(' AND ')} ORDER BY updated_at DESC,id DESC LIMIT ?`,...params,limit);
- const categories=all('SELECT category,COUNT(*) AS total FROM services WHERE available=1 GROUP BY category ORDER BY total DESC LIMIT 40');
+ const services=all(`SELECT id,name,category,brand,model,eta,CASE WHEN available=1 THEN 'confirmed' ELSE 'reference_only' END AS availability,CASE WHEN source='imeive' THEN 'imeive' WHEN source='telegram-announcement' THEN 'public_announcement' ELSE 'manual' END AS catalog_source FROM services WHERE ${where.join(' AND ')} ORDER BY updated_at DESC,id DESC LIMIT ?`,...params,limit);
+ const categories=all("SELECT category,COUNT(*) AS total FROM services WHERE available=1 OR source='telegram-announcement' GROUP BY category ORDER BY total DESC LIMIT 40");
  res.setHeader('Cache-Control','public, max-age=60');res.json({services,categories});
 });
 // All application data requires login, including catalog and prices.
