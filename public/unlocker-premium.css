@@ -83,3 +83,7 @@ body.ut-secondary{background:radial-gradient(ellipse at 75% 0%,#12351f 0%,transp
 @media(min-width:720px){.ut-reveal{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}.ut-reveal.ut-visible{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.ut-reveal{opacity:1!important;transform:none!important;transition:none!important}}
 @media(max-width:650px){.ut-premium .header-inner{flex-wrap:wrap}.ut-language-label{font-size:11px}.ut-language{max-width:110px}.ut-user-link{width:38px;height:38px}}
+
+/* Trust, onboarding and disclosure sections */
+.ut-trust-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px;margin:22px 0}
+.ut-faq{display:grid;gap:12px}.ut-faq details{background:#101b19;border:1px solid #2c5048;border-radius:18px;padding:18px 22px}.ut-faq summary{cursor:pointer;font-weight:700;color:#e3f9f5}.ut-faq details p{margin:14px 0 0;color:#b4cfc8;line-height:1.65}.ut-faq summary:focus-visible{outline:2px solid #2dd4bf;outline-offset:5px}.ut-status-row{display:flex;align-items:center;flex-wrap:wrap;gap:14px;border:1px solid #38504b;border-radius:20px;padding:22px;background:#121c1a}.ut-status-row span:last-child,.ut-note{color:#b3c8c2}.ut-status-dot{width:10px;height:10px;border-radius:50%;background:#b8b8b8}.site-footer a{color:#9be8db;text-decoration:underline;text-underline-offset:3px}
