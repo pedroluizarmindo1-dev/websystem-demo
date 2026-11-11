@@ -95,3 +95,5 @@ body.ut-secondary{background:radial-gradient(ellipse at 75% 0%,#12351f 0%,transp
 @media(prefers-reduced-motion:reduce){.ut-whatsapp{transition:none}.ut-whatsapp:hover{transform:none}}
 
 .ut-catalog-price{display:block;color:#2DD4BF;font-size:1.12rem;font-weight:800;margin:10px 0 4px;font-variant-numeric:tabular-nums}
+
+.ut-catalog-more{display:block;margin:24px auto;padding:12px 24px;border-radius:12px;border:1px solid #2DD4BF;background:transparent;color:#2DD4BF;font-weight:700;cursor:pointer}.ut-catalog-more:hover{background:#2DD4BF20}.ut-catalog-more[hidden]{display:none}
