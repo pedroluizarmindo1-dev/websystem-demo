@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {priceService} from '../api/pricing.mjs';
+const check=(name,expected)=>{const p=priceService({name,category:'GSM Services',price_usd:10},5.5);assert.equal(p.selling_brl,expected,`${name} => ${p.category}`)};
+check('Server Tool Credits Activation',57.5);
+check('Rental Tool 24h',72);
+check('FMI OFF iPhone',105);
+check('iCloud removal',105);
+check('SIM Lock Removal',105);
+check('Google Account Removal via server',105);
+check('Tool Activation 1 year',105);
+check('Tool Activation 6 months',105);
+check('Tool Activation 3m',105);
+check('IMEI check service',83);
+assert.throws(()=>priceService({name:'test',price_usd:1},0));
+console.log('PRICING_QA_PASS: credits 2.50, rental 17, premium 50, standard 28, USD->BRL');
