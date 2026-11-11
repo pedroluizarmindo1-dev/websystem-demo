@@ -119,14 +119,16 @@ app.get('/api/public/catalog',rateLimit({max:90,windowMs:60000,keyPrefix:'public
  const query=String(req.query.q||'').trim().slice(0,80);
  const category=String(req.query.category||'').trim().slice(0,80);
  const limit=Math.min(60,Math.max(1,Number.parseInt(req.query.limit,10)||24));
+ const offset=Math.min(10000,Math.max(0,Number.parseInt(req.query.offset,10)||0));
  const where=["(available=1 OR source='telegram-announcement')"];const params=[];
  if(query){where.push('(name LIKE ? OR category LIKE ? OR brand LIKE ? OR model LIKE ?)');params.push(...Array(4).fill('%'+query+'%'))}
  if(category){where.push('category=?');params.push(category)}
- const services=all(`SELECT id,name,category,brand,model,eta,price_usd,CASE WHEN available=1 THEN 'confirmed' ELSE 'reference_only' END AS availability,CASE WHEN source='imeive' THEN 'imeive' WHEN source='telegram-announcement' THEN 'public_announcement' ELSE 'manual' END AS catalog_source FROM services WHERE ${where.join(' AND ')} ORDER BY updated_at DESC,id DESC LIMIT ?`,...params,limit);
+ const services=all(`SELECT id,name,category,brand,model,eta,price_usd,CASE WHEN available=1 THEN 'confirmed' ELSE 'reference_only' END AS availability,CASE WHEN source='imeive' THEN 'imeive' WHEN source='telegram-announcement' THEN 'public_announcement' ELSE 'manual' END AS catalog_source FROM services WHERE ${where.join(' AND ')} ORDER BY CASE WHEN source='imeive' THEN 0 WHEN available=1 THEN 1 ELSE 2 END,category,name,id LIMIT ? OFFSET ?`,...params,limit,offset);
  const rate=get('SELECT rate FROM exchange_rates ORDER BY id DESC LIMIT 1')?.rate;
  const listed=services.map(({price_usd,...service})=>({...service,...(service.catalog_source==='imeive'&&rate>0?{price_brl:priceService({...service,price_usd},rate).selling_brl,currency:'BRL'}:{})}));
+ const total=get(`SELECT COUNT(*) AS n FROM services WHERE ${where.join(' AND ')}`,...params)?.n||0;
  const categories=all("SELECT category,COUNT(*) AS total FROM services WHERE available=1 OR source='telegram-announcement' GROUP BY category ORDER BY total DESC LIMIT 40");
- res.setHeader('Cache-Control','public, max-age=60');res.json({services:listed,categories});
+ res.setHeader('Cache-Control','public, max-age=60');res.json({services:listed,categories,total,offset,has_more:offset+listed.length<total});
 });
 // All application data requires login, including catalog and prices.
 // Legacy management endpoints are admin-only until finer-grained RBAC is implemented.
