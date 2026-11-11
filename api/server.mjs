@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import {mountCommerce} from './commerce.mjs';
 import {mountClientArea} from './client-area.mjs';
+import {mountWallet} from './wallet.mjs';
 import {getAnnouncements} from './telegram-announcements.mjs';
 import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
 import {verify,issue,getSession,revoke} from './auth.mjs';
@@ -31,15 +32,21 @@ const wrap=fn=>(req,res)=>{try{fn(req,res)}catch(e){res.status(400).json({error:
 const cookies=req=>Object.fromEntries((req.headers.cookie||'').split(';').map(s=>s.trim().split('=').map(decodeURIComponent)).filter(a=>a.length===2));
 const session=req=>getSession(cookies(req).ws_session);
 const guard=(req,res,next)=>{const user=session(req);if(!user)return res.status(401).json({error:'Login necessário'});req.user=user;next()};
+const adminOnly=(req,res,next)=>guard(req,res,()=>req.user.role==='admin'?next():res.status(403).json({error:'Acesso restrito'}));
+db.exec(`CREATE TABLE IF NOT EXISTS security_events(id INTEGER PRIMARY KEY,actor TEXT NOT NULL,action TEXT NOT NULL,outcome TEXT NOT NULL,ip TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+const securityEvent=(actor,action,outcome,req)=>{try{db.prepare('INSERT INTO security_events(actor,action,outcome,ip) VALUES (?,?,?,?)').run(String(actor).slice(0,120),String(action).slice(0,100),String(outcome).slice(0,30),String(req.ip||'unknown').slice(0,90))}catch(e){console.error('Security event write failed:',e.message)}};
+app.use('/api/admin',(req,res,next)=>adminOnly(req,res,()=>next()));
 const failures=new Map();
-app.post('/api/auth/login',wrap((req,res)=>{const ip=req.ip||'unknown',now=Date.now(),entry=failures.get(ip)||{count:0,until:0};if(entry.until>now)return res.status(429).json({error:'Muitas tentativas; tente novamente mais tarde'});const username=String(req.body?.username||'').slice(0,100),password=String(req.body?.password||'');if(password.length>256)throw Error('Credenciais inválidas');const user=verify(username,password);if(!user){entry.count++;if(entry.count>=5){entry.until=now+15*60*1000;entry.count=0}failures.set(ip,entry);return res.status(401).json({error:'Usuário ou senha inválidos'})}failures.delete(ip);const token=issue(user);const secure=process.env.COOKIE_SECURE==='true'||req.headers['x-forwarded-proto']==='https';res.setHeader('Set-Cookie',`ws_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${secure?'; Secure':''}`);res.json({username:user.username,role:user.role})}));
+const usernameForAudit=req=>String(req.body?.username||'anonymous').slice(0,100);
+app.post('/api/auth/login',wrap((req,res)=>{const ip=req.ip||'unknown',now=Date.now(),entry=failures.get(ip)||{count:0,until:0};if(entry.until>now){securityEvent(usernameForAudit(req),'admin_login','rate_limited',req);return res.status(429).json({error:'Muitas tentativas; tente novamente mais tarde'})}const username=String(req.body?.username||'').slice(0,100),password=String(req.body?.password||'');if(password.length>256)throw Error('Credenciais inválidas');const user=verify(username,password);if(!user){entry.count++;if(entry.count>=5){entry.until=now+15*60*1000;entry.count=0}failures.set(ip,entry);securityEvent(username,'admin_login','denied',req);return res.status(401).json({error:'Usuário ou senha inválidos'})}failures.delete(ip);securityEvent(user.username,'admin_login','success',req);const token=issue(user);const secure=process.env.COOKIE_SECURE==='true'||req.headers['x-forwarded-proto']==='https';res.setHeader('Set-Cookie',`ws_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${secure?'; Secure':''}`);res.json({username:user.username,role:user.role})}));
 app.get('/api/auth/me',(req,res)=>{const user=session(req);if(!user)return res.status(401).json({error:'Login necessário'});res.json(user)});
-app.post('/api/auth/logout',(req,res)=>{revoke(cookies(req).ws_session);res.setHeader('Set-Cookie','ws_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');res.json({ok:true})});
+app.post('/api/auth/logout',(req,res)=>{const u=session(req);if(u)securityEvent(u.username,'admin_logout','success',req);revoke(cookies(req).ws_session);res.setHeader('Set-Cookie','ws_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');res.json({ok:true})});
 // Public health endpoint contains no private data.
 app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools',version:'1.0.0-rc1'}));
 app.get('/api/readiness',guard,(req,res)=>{if(req.user.role!=='admin')return res.status(403).json({error:'Acesso restrito'});const configured=!!(process.env.IMEIVE_API_URL&&process.env.IMEIVE_API_USERNAME&&process.env.IMEIVE_API_KEY);const count=get("SELECT COUNT(*) AS n FROM services WHERE source='imeive'")?.n||0;res.setHeader('Cache-Control','no-store');res.json({version:'1.0.0-rc1',supplier_credentials_configured:configured,supplier_catalog_count:count,database_persistent:process.env.DATA_DIR?true:false,automatic_fulfillment_enabled:false,production_ready:false})});
 // Token-protected reseller endpoints are mounted before the browser session guard.
 mountClientArea(app,db,{adminGuard:guard});
+mountWallet(app,db,{adminGuard:guard});
 mountCommerce(app,db,{sessionGuard:guard,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
 const publicLookupAttempts=new Map();
@@ -56,7 +63,7 @@ app.post('/api/public/order-lookup',(req,res)=>{
   res.json({order_number:String(record.id).padStart(4,'0'),device_brand:record.device_brand||'',device_model:record.device_model,status:record.status,created_at:record.created_at,updated_at:record.updated_at});
 });
 // Supplier connection: credentials stay server-side; no order submission or wallet operations.
-const integrationAdmin=(req,res,next)=>guard(req,res,()=>req.user.role==='admin'?next():res.status(403).json({error:'Acesso restrito'}));
+const integrationAdmin=adminOnly;
 app.get('/api/integrations/imeive/status',integrationAdmin,async(req,res)=>{
  res.setHeader('Cache-Control','no-store');
  try{const a=(await supplierCall('accountinfo'))[0]?.AccoutInfo;if(!a)throw Error('Resposta de conta inválida');res.json({connected:true,provider:'IMEI VE Server',currency:a.currency||null,checked_at:new Date().toISOString()})}
@@ -73,6 +80,7 @@ app.post('/api/integrations/imeive/sync',integrationAdmin,async(req,res)=>{
 // All application data requires login, including catalog and prices.
 // Legacy management endpoints are admin-only until finer-grained RBAC is implemented.
 app.use('/api',integrationAdmin);
+app.get('/api/security/events',(req,res)=>res.json(all('SELECT id,actor,action,outcome,ip,created_at FROM security_events ORDER BY id DESC LIMIT 200')));
 app.get('/api/telegram/announcements',async(req,res)=>{try{res.json(await getAnnouncements())}catch(e){res.status(502).json({error:'Não foi possível consultar anúncios do Telegram'})}});
 app.get('/api/telegram/catalog-status',(req,res)=>res.json(getCatalogSyncStatus()));
 app.post('/api/telegram/sync',(req,res)=>{if(!getCatalogSyncStatus().running)syncEntireCatalog(db).catch(e=>console.error('Telegram import:',e.message));res.status(202).json({started:true,status:getCatalogSyncStatus()})});
@@ -111,10 +119,21 @@ if(process.env.DEMO_MODE==='true'){
 const port=Number(process.env.PORT||3100);const host=process.env.HOST||'127.0.0.1';
 const dist=resolve(root,'dist');
 if(existsSync(resolve(dist,'index.html'))){
- app.use(express.static(dist,{index:false,maxAge:'1h'}));
- // Public Home is the default entry point; admin SPA remains at /painel.html.
- app.get('/',(req,res)=>res.sendFile(resolve(dist,'home.html')));
- app.get('/painel.html',(req,res)=>res.sendFile(resolve(dist,'index.html')));
- app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});res.sendFile(resolve(dist,'index.html'))});
+ // Do not expose the admin SPA through /index.html or arbitrary fallback paths.
+ app.get('/index.html',(req,res)=>res.redirect(308,'/admin/'));
+ app.get('/painel.html',(req,res)=>res.redirect(308,'/admin/'));
+ app.get('/admin',(req,res,next)=>req.path==='/admin'?res.redirect(308,'/admin/'):next());
+ app.get('/admin/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
+ // Named routes share the existing protected applications until dedicated modules are ready.
+ app.get(['/admin/users','/admin/services','/admin/orders','/admin/settings','/admin/audit'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
+ app.get('/client',(req,res,next)=>req.path==='/client'?res.redirect(308,'/client/'):next());
+ app.get(['/client/','/client/orders','/client/support'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'cliente.html'))});
+ app.get('/login',(req,res)=>res.redirect(302,'/client/'));
+ app.get('/services',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'services.html'))});
+ app.get('/register',(req,res)=>res.status(503).send('Cadastro público ainda indisponível. Solicite acesso ao suporte.') );
+ app.get('/client/wallet',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'wallet.html'))});
+ app.use(express.static(dist,{index:false,maxAge:'1h',setHeaders:(res,file)=>{if(/\\.html$/i.test(file))res.setHeader('Cache-Control','no-store')}}));
+ app.get('/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'home.html'))});
+ app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});return res.status(404).send('Página não encontrada')});
 }
 app.listen(port,host,()=>console.log('WebSystem production: http://'+host+':'+port));
