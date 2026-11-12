@@ -18,7 +18,7 @@ export function normalizeCatalog(results,categoryType){
    for(const [key,s] of Object.entries(group?.SERVICES||{})){
     const id=String(s.SERVICEID??key),name=String(s.SERVICENAME||'').trim(),price=Number(s.CREDIT);
     if(!id||!name||!Number.isFinite(price)||price<0)continue;
-    rows.push({external_id:'imeive:'+id,source:'imeive',name,category:String(group.GROUPNAME||groupKey||categoryType).slice(0,180),brand:'',model:'',price_usd:price,eta:String(s.TIME||'').slice(0,100),available:1,metadata:JSON.stringify({serviceType:s.SERVICETYPE||categoryType,requires:Object.fromEntries(Object.entries(s).filter(([k])=>k.startsWith('Requires.'))),qnt:s.QNT||1}).slice(0,8000)});
+    rows.push({external_id:'imeive:'+id,source:'imeive',name,category:String(group.GROUPNAME||groupKey||categoryType).slice(0,180),brand:'',model:'',price_usd:price,eta:String(s.TIME||'').slice(0,100),available:1,metadata:JSON.stringify({serviceType:s.SERVICETYPE||categoryType,requires:Object.fromEntries(Object.entries(s).filter(([k])=>k.startsWith('Requires.')&&k!=='Requires.Custom')),form_fields:Array.isArray(s.form_fields)?s.form_fields:[],qnt:s.QNT||0}).slice(0,8000)});
    }
   }
  }
@@ -35,10 +35,12 @@ export async function syncSupplier(db){
  }
  const unique=[...new Map(groups.map(x=>[x.external_id,x])).values()];
  if(!unique.length)throw Error('Catálogo vazio; nenhuma alteração aplicada');
+ db.exec('CREATE TABLE IF NOT EXISTS supplier_service_fields(external_id TEXT PRIMARY KEY,metadata_json TEXT NOT NULL,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
  db.exec('BEGIN');
  try{
   const upsert=db.prepare("INSERT INTO services(external_id,source,name,category,brand,model,price_usd,available,eta) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(external_id) DO UPDATE SET name=excluded.name,category=excluded.category,price_usd=excluded.price_usd,available=1,eta=excluded.eta,updated_at=CURRENT_TIMESTAMP WHERE services.source='imeive'");
-  for(const x of unique)upsert.run(x.external_id,x.source,x.name,x.category,x.brand,x.model,x.price_usd,x.available,x.eta);
+  const fieldUpsert=db.prepare('INSERT INTO supplier_service_fields(external_id,metadata_json,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(external_id) DO UPDATE SET metadata_json=excluded.metadata_json,updated_at=CURRENT_TIMESTAMP');
+  for(const x of unique){upsert.run(x.external_id,x.source,x.name,x.category,x.brand,x.model,x.price_usd,x.available,x.eta);fieldUpsert.run(x.external_id,x.metadata)}
   const ids=unique.map(x=>x.external_id);
   const deactivate=db.prepare("UPDATE services SET available=0,updated_at=CURRENT_TIMESTAMP WHERE source='imeive' AND external_id=?");
   const old=db.prepare("SELECT external_id FROM services WHERE source='imeive'").all();

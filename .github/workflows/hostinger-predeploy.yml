@@ -1,8 +1,8 @@
 name: WebSystem Hostinger pre-deployment verification
 on:
   push:
-    branches: [release/client-build-2026-11-10]
-    paths: ['.github/workflows/hostinger-predeploy.yml']
+    branches: [release/client-build-2026-11-10, integration/order-history-client-area-20261112]
+    paths: ['.github/workflows/hostinger-predeploy.yml', 'scripts/predeploy-hostinger.sh', 'scripts/verify-sqlite-restore.sh']
   workflow_dispatch:
 permissions:
   contents: read
@@ -35,7 +35,17 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           set -euo pipefail
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$VPS_USER@$VPS_HOST" 'bash -s' < scripts/predeploy-hostinger.sh
+          output=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$VPS_USER@$VPS_HOST" 'bash -s' < scripts/predeploy-hostinger.sh)
+          printf '%s\n' "$output"
+          grep -qx 'PREFLIGHT_PASS' <<< "$output" || { echo "::error::Remote preflight did not reach PREFLIGHT_PASS"; exit 1; }
+          grep -qx 'BACKUP_COMMAND_OK' <<< "$output" || { echo "::error::Verified backup was not confirmed"; exit 1; }
+      - name: Verify isolated SQLite restore on production host
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$VPS_USER@$VPS_HOST" 'bash -s' < scripts/verify-sqlite-restore.sh
       - name: Verify public HTTPS health
         run: |
           set -euo pipefail

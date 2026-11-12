@@ -21,6 +21,13 @@ export function mountWallet(app,db,{adminGuard}){
  clientRouter.get('/',(req,res)=>{const id=req.walletClient.id;const a=q('SELECT balance_cents FROM wallet_accounts WHERE client_id=?',id);res.json({currency:'BRL',balance_cents:a?.balance_cents||0,requests_enabled:enabled(),methods:['pix_manual','usdt_bep20'],usdt_network:'BEP20',usdt_token_contract_configured:!!process.env.USDT_BEP20_CONTRACT,usdt_deposit_address_configured:!!process.env.USDT_BEP20_ADDRESS})});
  clientRouter.get('/deposits',(req,res)=>res.json(all('SELECT id,method,amount_cents,status,reference,tx_hash,created_at,reviewed_at FROM wallet_deposits WHERE client_id=? ORDER BY id DESC LIMIT 100',req.walletClient.id)));
  clientRouter.get('/ledger',(req,res)=>res.json(all('SELECT id,deposit_id,delta_cents,balance_after_cents,created_at FROM wallet_ledger WHERE client_id=? ORDER BY id DESC LIMIT 100',req.walletClient.id)));
+ clientRouter.get('/statement',(req,res)=>{
+  const id=req.walletClient.id;
+  const account=q('SELECT balance_cents FROM wallet_accounts WHERE client_id=?',id);
+  const entries=all(`SELECT l.id AS ledger_id,l.deposit_id,l.delta_cents,l.balance_after_cents,l.created_at,d.method,d.status
+   FROM wallet_ledger l JOIN wallet_deposits d ON d.id=l.deposit_id WHERE l.client_id=? ORDER BY l.id DESC LIMIT 100`,id);
+  res.json({currency:'BRL',balance_cents:account?.balance_cents||0,transactions:entries.map(e=>({id:'deposit:'+e.ledger_id,type:'deposit',delta_cents:e.delta_cents,balance_after_cents:e.balance_after_cents,reference_id:e.deposit_id,method:e.method,created_at:e.created_at})),note:'Este extrato inclui somente depósitos aprovados na carteira do cliente. Débitos e reembolsos serão exibidos após integração transacional dos pedidos.'});
+ });
  clientRouter.post('/deposits',(req,res)=>{
   if(!enabled())return fail(res,503,'Solicitações de recarga desativadas');
   const {method,amount_cents}=req.body||{};
