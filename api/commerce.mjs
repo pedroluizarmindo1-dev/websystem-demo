@@ -36,9 +36,16 @@ export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
    if(!s)return error(res,404,'Serviço não encontrado');
    // Record request only: no wallet debit or external supplier action until confirmed.
    const cost=rate?priceFor(quote(s.price_usd,rate,settings.margin_percent,settings.spread_brl),tier,settings):0;
-   const order=run('INSERT INTO orders(customer_name,device_model,service_id,price_brl,payment_status,status) VALUES (?,?,?,?,?,?)',req.reseller.label,imei,serviceId,cost,'pendente','pendente');
-   audit('orders',Number(order.lastInsertRowid),'reseller_api_request',req.reseller.label);
-   return res.status(202).json({SUCCESS:[{ID:Number(order.lastInsertRowid),STATUS:'Pending',MESSAGE:'Solicitação registrada. Aguardando validação; não enviada ao fornecedor.'}]});
+   db.exec('BEGIN IMMEDIATE');
+   let id;
+   try{
+    const order=run('INSERT INTO orders(customer_name,device_model,service_id,price_brl,payment_status,status) VALUES (?,?,?,?,?,?)',req.reseller.label,imei,serviceId,cost,'pendente','pendente');
+    id=Number(order.lastInsertRowid);
+    run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,?,?,?,?)',id,null,'pendente','reseller_api',req.reseller.label);
+    audit('orders',id,'reseller_api_request',req.reseller.label);
+    db.exec('COMMIT');
+   }catch(e){db.exec('ROLLBACK');throw e}
+   return res.status(202).json({SUCCESS:[{ID:id,STATUS:'Pending',MESSAGE:'Solicitação registrada. Aguardando validação; não enviada ao fornecedor.'}]});
   }
   return error(res,400,'Ação não suportada. Use accountinfo, imeiservicelist, placeimeiorder ou getimeiorder.');
  };
