@@ -24,7 +24,7 @@ echo "PREFLIGHT_STEP $STEP"
 docker compose ps --status running --services | grep -qx websystem || { echo 'WebSystem container not running'; exit 1; }
 STEP=verify-container-health
 echo "PREFLIGHT_STEP $STEP"
-docker compose exec -T websystem node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+docker compose exec -T websystem node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>{if(!r.ok){console.error('CONTAINER_HEALTH_HTTP_STATUS',r.status);process.exit(1)}console.log('CONTAINER_HEALTH_OK')}).catch(e=>{console.error('CONTAINER_HEALTH_ERROR',e.cause?.code||e.code||e.name);process.exit(1)})"
 STEP=verify-sqlite-integrity
 echo "PREFLIGHT_STEP $STEP"
 docker compose exec -T websystem node --input-type=module -e '
@@ -39,8 +39,9 @@ for(const name of ["websystem.sqlite","auth.sqlite"]){
 }'
 STEP=verify-backup-utility
 echo "PREFLIGHT_STEP $STEP"
-test -x STEP=execute-backup
-"$BACKUP" || { echo 'Backup utility missing or not executable'; exit 1; }
+test -x "$BACKUP" || { echo 'Backup utility missing or not executable'; exit 1; }
+STEP=execute-backup
+echo "PREFLIGHT_STEP $STEP"
 "$BACKUP"
 echo 'BACKUP_COMMAND_OK'
 echo 'PREFLIGHT_PASS'
