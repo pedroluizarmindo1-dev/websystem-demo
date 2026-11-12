@@ -18,3 +18,15 @@ CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 INSERT OR IGNORE INTO campaigns(id,title,body,link) VALUES (1,'Central de serviços GSM','Explore serviços, ferramentas e anúncios atualizados. Consulte disponibilidade antes de solicitar.','https://t.me/PriceNotification');
 
 CREATE TABLE IF NOT EXISTS order_public_links(order_id INTEGER PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+
+-- Append-only history; existing orders are not backfilled with invented events.
+CREATE TABLE IF NOT EXISTS order_status_history (
+ id INTEGER PRIMARY KEY,
+ order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+ previous_status TEXT,
+ new_status TEXT NOT NULL,
+ origin TEXT NOT NULL,
+ actor TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON order_status_history(order_id,id);
