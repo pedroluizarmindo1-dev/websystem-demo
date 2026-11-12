@@ -115,6 +115,13 @@ app.post('/api/integrations/imeive/sync',integrationAdmin,async(req,res)=>{
  catch(e){res.status(502).json({ok:false,error:e.message})}
 });
 // Public storefront exposes ONLY allowlisted descriptive fields, never prices or supplier IDs.
+app.get('/api/public/services/:id',rateLimit({max:90,windowMs:60000,keyPrefix:'public-service-detail'}),(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({error:'Serviço inválido'});
+ const row=get("SELECT id,name,category,brand,model,eta,price_usd,source,available FROM services WHERE id=? AND (available=1 OR source='telegram-announcement')",id);
+ if(!row)return res.status(404).json({error:'Serviço indisponível'});
+ const {price_usd,source,available,...service}=row;const rate=get('SELECT rate FROM exchange_rates ORDER BY id DESC LIMIT 1')?.rate;
+ res.setHeader('Cache-Control','public, max-age=60');res.json({...service,availability:available===1?'confirmed':'reference_only',catalog_source:source==='imeive'?'imeive':source==='telegram-announcement'?'public_announcement':'manual',...(source==='imeive'&&rate>0?{price_brl:priceService({...service,price_usd},rate).selling_brl,currency:'BRL'}:{})});
+});
 app.get('/api/public/catalog',rateLimit({max:90,windowMs:60000,keyPrefix:'public-catalog'}),(req,res)=>{
  const query=String(req.query.q||'').trim().slice(0,80);
  const category=String(req.query.category||'').trim().slice(0,80);
@@ -123,12 +130,14 @@ app.get('/api/public/catalog',rateLimit({max:90,windowMs:60000,keyPrefix:'public
  const where=["(available=1 OR source='telegram-announcement')"];const params=[];
  if(query){where.push('(name LIKE ? OR category LIKE ? OR brand LIKE ? OR model LIKE ?)');params.push(...Array(4).fill('%'+query+'%'))}
  if(category){where.push('category=?');params.push(category)}
+ const main=String(req.query.main||'').trim().toUpperCase();if(['IMEI','SERVER','REMOTE','OTHER'].includes(main)){where.push(main==='OTHER'?"(source!='imeive' OR COALESCE((SELECT UPPER(json_extract(metadata_json,'$.serviceType')) FROM supplier_service_fields WHERE external_id=services.external_id),'OTHER') NOT IN ('IMEI','SERVER','REMOTE'))":"UPPER(COALESCE((SELECT json_extract(metadata_json,'$.serviceType') FROM supplier_service_fields WHERE external_id=services.external_id),''))=?");if(main!=='OTHER')params.push(main)}
  const services=all(`SELECT id,name,category,brand,model,eta,price_usd,CASE WHEN available=1 THEN 'confirmed' ELSE 'reference_only' END AS availability,CASE WHEN source='imeive' THEN 'imeive' WHEN source='telegram-announcement' THEN 'public_announcement' ELSE 'manual' END AS catalog_source FROM services WHERE ${where.join(' AND ')} ORDER BY CASE WHEN source='imeive' THEN 0 WHEN available=1 THEN 1 ELSE 2 END,category,name,id LIMIT ? OFFSET ?`,...params,limit,offset);
  const rate=get('SELECT rate FROM exchange_rates ORDER BY id DESC LIMIT 1')?.rate;
  const listed=services.map(({price_usd,...service})=>({...service,...(service.catalog_source==='imeive'&&rate>0?{price_brl:priceService({...service,price_usd},rate).selling_brl,currency:'BRL'}:{})}));
  const total=get(`SELECT COUNT(*) AS n FROM services WHERE ${where.join(' AND ')}`,...params)?.n||0;
+ const hierarchy=all(`SELECT s.category,COALESCE(json_extract(m.metadata_json,'$.serviceType'),'OTHER') AS service_type,COUNT(*) AS total FROM services s LEFT JOIN supplier_service_fields m ON m.external_id=s.external_id WHERE s.available=1 OR s.source='telegram-announcement' GROUP BY s.category,service_type ORDER BY total DESC LIMIT 500`).map(x=>({main_category:['IMEI','SERVER','REMOTE'].includes(String(x.service_type).toUpperCase())?String(x.service_type).toUpperCase():'OTHER',category:x.category,subcategory:'Geral',total:x.total}));
  const categories=all("SELECT category,COUNT(*) AS total FROM services WHERE available=1 OR source='telegram-announcement' GROUP BY category ORDER BY total DESC LIMIT 40");
- res.setHeader('Cache-Control','public, max-age=60');res.json({services:listed,categories,total,offset,has_more:offset+listed.length<total});
+ res.setHeader('Cache-Control','public, max-age=60');res.json({services:listed,categories,hierarchy,total,offset,has_more:offset+listed.length<total});
 });
 // All application data requires login, including catalog and prices.
 // Legacy management endpoints are admin-only until finer-grained RBAC is implemented.
@@ -153,9 +162,35 @@ app.post('/api/orders/:id/public-link',adminOnly,wrap((req,res)=>{
   res.setHeader('Cache-Control','no-store');
   res.json({url:'/consulta.html#'+id+'.'+token});
 }));
+app.get('/api/orders/:id/status-history',adminOnly,wrap((req,res)=>{
+ const id=Number(req.params.id);
+ if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({error:'ID inválido'});
+ if(!get('SELECT id FROM orders WHERE id=?',id))return res.status(404).json({error:'Ordem não encontrada'});
+ res.json(all("SELECT id,action,detail,created_at FROM audit_logs WHERE entity='orders' AND entity_id=? AND action IN ('created','status','reseller_api_request') ORDER BY id ASC LIMIT 500",id).map(e=>({id:e.id,previous_status:null,new_status:e.action==='status'?e.detail:'pendente',origin:e.action,actor:null,created_at:e.created_at})));
+}));
 app.get('/api/orders',adminOnly,wrap((req,res)=>res.json(all('SELECT * FROM orders ORDER BY id DESC LIMIT 200'))));
-app.post('/api/orders',adminOnly,wrap((req,res)=>{const s=req.body;if(!s.customer_name||!s.device_model)throw Error('Cliente e modelo obrigatórios');const r=run('INSERT INTO orders(customer_name,customer_contact,device_brand,device_model,service_id,price_brl,anydesk_id,payment_status) VALUES (?,?,?,?,?,?,?,?)',s.customer_name,s.customer_contact||'',s.device_brand||'',s.device_model,s.service_id||null,Number(s.price_brl)||0,s.anydesk_id||'',s.payment_status||'pendente');audit('orders',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
-app.patch('/api/orders/:id',adminOnly,wrap((req,res)=>{const allowed=['pendente','em_processamento','concluido','entregue','rejeitado','reembolsado'];if(!allowed.includes(req.body.status))throw Error('Status inválido');const r=run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,Number(req.params.id));if(!r.changes)return res.sendStatus(404);audit('orders',Number(req.params.id),'status',req.body.status);res.json({ok:true})}));
+app.post('/api/orders',adminOnly,wrap((req,res)=>{
+ const s=req.body||{};if(!s.customer_name||!s.device_model)throw Error('Cliente e modelo obrigatórios');
+ db.exec('BEGIN IMMEDIATE');
+ try{
+  const r=run('INSERT INTO orders(customer_name,customer_contact,device_brand,device_model,service_id,price_brl,anydesk_id,payment_status) VALUES (?,?,?,?,?,?,?,?)',s.customer_name,s.customer_contact||'',s.device_brand||'',s.device_model,s.service_id||null,Number(s.price_brl)||0,s.anydesk_id||'',s.payment_status||'pendente');
+  const id=Number(r.lastInsertRowid);audit('orders',id,'created');db.exec('COMMIT');res.status(201).json({id});
+ }catch(e){db.exec('ROLLBACK');throw e}
+}));
+app.patch('/api/orders/:id',adminOnly,wrap((req,res)=>{
+ const allowed=['pendente','em_processamento','concluido','entregue','rejeitado','reembolsado'];
+ if(!allowed.includes(req.body?.status))throw Error('Status inválido');
+ const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({error:'ID inválido'});
+ db.exec('BEGIN IMMEDIATE');
+ try{
+  const current=get('SELECT status FROM orders WHERE id=?',id);
+  if(!current){db.exec('ROLLBACK');return res.status(404).json({error:'Ordem não encontrada'})}
+  if(current.status===req.body.status){db.exec('COMMIT');return res.json({ok:true,changed:false})}
+  run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,id);
+  audit('orders',id,'status',req.body.status);
+  db.exec('COMMIT');res.json({ok:true,changed:true});
+ }catch(e){db.exec('ROLLBACK');throw e}
+}));
 app.get('/api/remote-sessions',adminOnly,wrap((req,res)=>res.json(all('SELECT * FROM remote_sessions ORDER BY id DESC LIMIT 200'))));
 app.post('/api/remote-sessions',adminOnly,wrap((req,res)=>{const s=req.body;if(!get('SELECT id FROM orders WHERE id=?',Number(s.order_id))||!s.anydesk_id)throw Error('O.S. e ID AnyDesk obrigatórios');const r=run('INSERT INTO remote_sessions(order_id,anydesk_id,scheduled_at) VALUES (?,?,?)',Number(s.order_id),s.anydesk_id,s.scheduled_at||null);audit('remote_sessions',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
 app.patch('/api/remote-sessions/:id',adminOnly,wrap((req,res)=>{const allowed=['aguardando_conexao','conectado','aguardando_reinicio','concluido','falha','cancelado'];if(!allowed.includes(req.body.status))throw Error('Status inválido');const r=run('UPDATE remote_sessions SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,Number(req.params.id));if(!r.changes)return res.sendStatus(404);audit('remote_sessions',Number(req.params.id),'status',req.body.status);res.json({ok:true})}));
@@ -189,6 +224,7 @@ if(existsSync(resolve(dist,'index.html'))){
  app.get(['/client/','/client/orders','/client/support'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'cliente.html'))});
  app.get('/login',(req,res)=>res.redirect(302,'/client/'));
  app.get('/services',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'services.html'))});
+ app.get(/^\/services\/\d+\/?$/,(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'service-detail.html'))});
  app.get('/register',(req,res)=>res.redirect(302,'/client/?view=register'));
  app.get('/consulta',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'consulta.html'))});
  app.get('/client/wallet',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'wallet.html'))});
