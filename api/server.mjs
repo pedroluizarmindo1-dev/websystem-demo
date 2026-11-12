@@ -3,6 +3,7 @@ import {randomBytes,createHash} from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import {mountCommerce} from './commerce.mjs';
+import {mountClientArea} from './client-area.mjs';
 import {getAnnouncements} from './telegram-announcements.mjs';
 import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
 import {verify,issue,getSession,revoke} from './auth.mjs';
@@ -12,6 +13,13 @@ import { resolve } from 'node:path';
 const app=express();app.disable('x-powered-by');
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');if(req.path.startsWith('/api/'))res.setHeader('Cache-Control','no-store');next()});
 app.use(express.json({limit:'128kb'}));app.use(cors({origin:false}));
+// Browser session mutations must originate from the configured first-party origin.
+app.use('/api',(req,res,next)=>{
+ if(['GET','HEAD','OPTIONS'].includes(req.method)||req.path==='/dhru'||req.path.startsWith('/dhru/'))return next();
+ const origin=req.headers.origin;
+ if(!process.env.APP_ORIGIN||origin!==process.env.APP_ORIGIN)return res.status(403).json({error:'Origem não autorizada'});
+ next();
+});
 const root=resolve(import.meta.dirname,'..');mkdirSync(resolve(root,'data'),{recursive:true});
 const db=new DatabaseSync(resolve(root,'data','websystem.sqlite'));
 db.exec(readFileSync(resolve(root,'api/schema.sql'),'utf8'));
@@ -31,6 +39,7 @@ app.post('/api/auth/logout',(req,res)=>{revoke(cookies(req).ws_session);res.setH
 app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools',version:'1.0.0-rc1'}));
 app.get('/api/readiness',guard,(req,res)=>{if(req.user.role!=='admin')return res.status(403).json({error:'Acesso restrito'});const configured=!!(process.env.IMEIVE_API_URL&&process.env.IMEIVE_API_USERNAME&&process.env.IMEIVE_API_KEY);const count=get("SELECT COUNT(*) AS n FROM services WHERE source='imeive'")?.n||0;res.setHeader('Cache-Control','no-store');res.json({version:'1.0.0-rc1',supplier_credentials_configured:configured,supplier_catalog_count:count,database_persistent:process.env.DATA_DIR?true:false,automatic_fulfillment_enabled:false,production_ready:false})});
 // Token-protected reseller endpoints are mounted before the browser session guard.
+mountClientArea(app,db,{adminGuard:guard});
 mountCommerce(app,db,{sessionGuard:guard,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
 const publicLookupAttempts=new Map();
@@ -62,7 +71,8 @@ app.post('/api/integrations/imeive/sync',integrationAdmin,async(req,res)=>{
  finally{supplierSyncRunning=false}
 });
 // All application data requires login, including catalog and prices.
-app.use('/api',guard);
+// Legacy management endpoints are admin-only until finer-grained RBAC is implemented.
+app.use('/api',integrationAdmin);
 app.get('/api/telegram/announcements',async(req,res)=>{try{res.json(await getAnnouncements())}catch(e){res.status(502).json({error:'Não foi possível consultar anúncios do Telegram'})}});
 app.get('/api/telegram/catalog-status',(req,res)=>res.json(getCatalogSyncStatus()));
 app.post('/api/telegram/sync',(req,res)=>{if(!getCatalogSyncStatus().running)syncEntireCatalog(db).catch(e=>console.error('Telegram import:',e.message));res.status(202).json({started:true,status:getCatalogSyncStatus()})});
@@ -102,6 +112,9 @@ const port=Number(process.env.PORT||3100);const host=process.env.HOST||'127.0.0.
 const dist=resolve(root,'dist');
 if(existsSync(resolve(dist,'index.html'))){
  app.use(express.static(dist,{index:false,maxAge:'1h'}));
+ // Public Home is the default entry point; admin SPA remains at /painel.html.
+ app.get('/',(req,res)=>res.sendFile(resolve(dist,'home.html')));
+ app.get('/painel.html',(req,res)=>res.sendFile(resolve(dist,'index.html')));
  app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});res.sendFile(resolve(dist,'index.html'))});
 }
 app.listen(port,host,()=>console.log('WebSystem production: http://'+host+':'+port));

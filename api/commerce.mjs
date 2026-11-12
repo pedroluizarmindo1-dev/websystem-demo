@@ -8,14 +8,14 @@ const clientIp=req=>(req.socket.remoteAddress||'').replace(/^::ffff:/,'');
 const priceFor=(base,tier,settings)=>Math.round(Math.max(0,base*(1+(Number(settings.retail_markup_percent)||0)/100)*(1-(Number(settings[tier+'_discount_percent'])||0)/100))*100)/100;
 export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
  const all=(s,...p)=>db.prepare(s).all(...p),get=(s,...p)=>db.prepare(s).get(...p),run=(s,...p)=>db.prepare(s).run(...p);
- const protect=(req,res,next)=>sessionGuard(req,res,next);
+ const protect=(req,res,next)=>sessionGuard(req,res,()=>req.user?.role==='admin'?next():error(res,403,'Acesso restrito'));
  const wrap=fn=>(req,res)=>{try{fn(req,res)}catch(e){error(res,400,e.message)}};
  const fx=()=>get('SELECT rate FROM exchange_rates ORDER BY id DESC LIMIT 1')?.rate||0;
  const wallet=()=>{const entries=all('SELECT * FROM wallet_entries ORDER BY id DESC LIMIT 300');const balance=all("SELECT kind,amount_brl FROM wallet_entries WHERE status='approved'").reduce((n,e)=>n+(e.kind==='credit'||e.kind==='refund'?e.amount_brl:-e.amount_brl),0);return {balance_brl:Math.round(balance*100)/100,entries}};
  // Compatibility subset of DHRU-style API: action + key; intentionally no supplier fulfillment.
  const router=Router();
  const apiAuth=(req,res,next)=>{
-  const token=String(req.headers['x-api-key']||req.body?.key||req.query.key||'');
+  const token=String(req.headers['x-api-key']||req.body?.key||'');
   if(token.length<32||token.length>256)return error(res,401,'Chave API necessária');
   const digest=hash(token);const key=get('SELECT * FROM reseller_keys WHERE token_hash=? AND enabled=1',digest);
   if(!key||!safe(key.token_hash,digest))return error(res,401,'Chave inválida');
