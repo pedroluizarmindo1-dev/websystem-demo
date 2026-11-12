@@ -1,0 +1,40 @@
+name: Integration quality gate
+on:
+  pull_request:
+    branches:
+      - release/client-build-2026-11-10
+  push:
+    branches:
+      - integration/order-history-client-area-20261112
+permissions:
+  contents: read
+jobs:
+  isolated-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Syntax validation
+        run: |
+          node --check api/server.mjs
+          node --check api/client-area.mjs
+          node --check api/commerce.mjs
+      - name: Production build
+        run: npm run build
+      - name: Isolated order history
+        run: node scripts/qa-order-history-isolated.mjs
+      - name: Client isolation
+        run: node scripts/qa-client-isolated.mjs
+      - name: RBAC
+        run: node scripts/qa-rbac-isolated.mjs
+      - name: Security
+        run: node scripts/qa-security-isolated.mjs
+      - name: Smoke
+        run: node scripts/qa-smoke.mjs
+      - name: Pricing
+        run: node scripts/qa-pricing.mjs
