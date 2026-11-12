@@ -39,6 +39,17 @@ try{
  for(const u of users){
   const r=await request('/orders',{cookie:u.cookie});assert(r.status===200&&r.data.length===1&&r.data[0].id===u.order,'Client order leakage');
  }
+ // Order history must be persisted and visible only to the linked client.
+ db.prepare('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)').run('orders',a.order,'created','');
+ db.prepare('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run('em_processamento',a.order);
+ db.prepare('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)').run('orders',a.order,'status','em_processamento');
+ let history=await request('/orders/'+a.order+'/history',{cookie:a.cookie});
+ assert(history.status===200&&history.data.history.length===2&&history.data.history[1].status==='em_processamento','Order status history not returned');
+ assert(history.data.history_complete===false,'Historical coverage must not be overstated');
+ history=await request('/orders/'+a.order+'/history',{cookie:b.cookie});
+ assert(history.status===404,'Cross-client order history disclosed');
+ history=await request('/orders/'+a.order+'/history');
+ assert(history.status===401,'Unauthenticated order history disclosed');
  let r=await request('/tickets',{cookie:a.cookie,method:'POST',body:{subject:'Unauthorized order',description:'Isolation test',order_id:b.order}});
  assert(r.status===403,'Cross-client ticket linked to another client order');
  r=await request('/tickets',{cookie:a.cookie,method:'POST',body:{subject:'Own order',description:'Test support request',order_id:a.order}});
@@ -48,5 +59,5 @@ try{
  r=await request('/tickets',{cookie:a.cookie});assert(r.status===200&&r.data.some(t=>t.id===ticketId),'Own ticket missing');
  r=await request('/logout',{cookie:a.cookie,method:'POST'});assert(r.status===200,'Logout failed');
  r=await request('/me',{cookie:a.cookie});assert(r.status===401,'Session not revoked on logout');
- console.log('CLIENT_ISOLATION_PASS: login, orders, cross-account access, tickets, logout');
+ console.log('CLIENT_ISOLATION_PASS: login, orders, status history, cross-account access, tickets, logout');
 }finally{if(child){child.kill('SIGTERM');await delay(150)}rmSync(dir,{recursive:true,force:true})}
