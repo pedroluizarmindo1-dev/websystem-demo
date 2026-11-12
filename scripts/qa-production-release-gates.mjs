@@ -1,0 +1,14 @@
+import {readFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const compose=readFileSync('compose.yaml','utf8');
+const server=readFileSync('api/server.mjs','utf8');
+const deploy=readFileSync('scripts/deploy-hostinger.sh','utf8');
+const workflow=readFileSync('.github/workflows/hostinger-release.yml','utf8');
+assert.match(compose,/APP_ORIGIN:\s*\$\{APP_ORIGIN:-https:\/\/unlockertools\.tech\}/);
+assert.match(server,/origin!==process\.env\.APP_ORIGIN/);
+assert.match(deploy,/DEPLOY_BACKUP_OK/);
+assert.match(deploy,/DEPLOY_ARCHIVE_VALIDATED/);
+assert.match(deploy,/rsync -a --checksum/);
+assert.match(workflow,/github\.event_name == 'workflow_dispatch' && inputs\.deploy == true/);
+assert.match(workflow,/environment: production/);
+console.log('PRODUCTION_RELEASE_GATES_PASS');
