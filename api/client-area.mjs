@@ -72,6 +72,14 @@ export function mountClientArea(app,db,{adminGuard}){
   catch(e){console.error('Registration email failed');return fail(res,503,'Não foi possível enviar o e-mail. Tente mais tarde')}
   event(id,'client_register','pending_verification',req);res.status(202).json({ok:true,message:'Confira seu e-mail para confirmar a conta'});
  });
+ router.post('/resend-verification',limited('resend',4,3600000),async(req,res)=>{
+  if(!mailReady())return fail(res,503,'Envio de e-mail temporariamente indisponível');
+  const email=String(req.body?.email||'').trim().toLowerCase();
+  if(!validEmail(email))return fail(res,400,'Informe um e-mail válido');
+  const u=q('SELECT id FROM client_users WHERE email=? AND enabled=0',email);
+  if(u){const token=makeToken(u.id,'verify');try{await mail(email,'Confirme sua conta UNLOCKER Tools',`Para confirmar seu cadastro, acesse: ${process.env.APP_ORIGIN}/client/?view=verify&token=${token}\nEste link expira em 30 minutos.`)}catch(e){console.error('Verification resend failed');return fail(res,503,'Não foi possível enviar o e-mail. Tente novamente mais tarde')}}
+  res.json({ok:true,message:'Se houver um cadastro pendente, enviaremos um novo link. Confira também a pasta de spam.'});
+ });
  router.post('/verify-email',limited('verify',12,900000),(req,res)=>{
   const token=String(req.body?.token||'');if(!/^[a-f0-9]{64}$/.test(token))return fail(res,400,'Link inválido');
   const row=q("SELECT client_id FROM client_auth_tokens WHERE token_hash=? AND purpose='verify' AND expires_at>?",digest(token),Date.now());
@@ -114,7 +122,39 @@ export function mountClientArea(app,db,{adminGuard}){
  });
  router.post('/logout',(req,res)=>{const u=sessions(req);if(u)event(u.id,'client_logout','success',req);const t=cookie(req)[tokenKey];if(t)run('DELETE FROM client_sessions WHERE token_hash=?',digest(t));res.setHeader('Set-Cookie',secureCookie(req,'',0));res.json({ok:true})});
  router.get('/me',requireClient,(req,res)=>res.json(req.client));
+ db.exec(`CREATE TABLE IF NOT EXISTS client_order_drafts(id INTEGER PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES client_users(id) ON DELETE CASCADE,service_name TEXT NOT NULL,device_model TEXT NOT NULL,identifier TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'draft' CHECK(status='draft'),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);CREATE INDEX IF NOT EXISTS idx_client_order_drafts_owner ON client_order_drafts(client_id,id)`);
+ if(!all('PRAGMA table_info(client_order_drafts)').some(c=>c.name==='details_json'))db.exec('ALTER TABLE client_order_drafts ADD COLUMN details_json TEXT');
+ db.exec('CREATE TABLE IF NOT EXISTS supplier_service_fields(external_id TEXT PRIMARY KEY,metadata_json TEXT NOT NULL,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+ const appleSerialEligible=name=>/\b(?:ipad|macbook|imac|mac mini|mac studio|apple watch)\b/i.test(name)&&!/\b(?:iphone|cellular only|imei only)\b/i.test(name);
+ const safeFields=(service)=>{let meta={};try{meta=JSON.parse(service.metadata_json||'{}')}catch{}const raw=Array.isArray(meta.form_fields)?meta.form_fields:[];return {service_id:service.id,name:service.name,type:meta.serviceType||'UNKNOWN',primary_identifier:String(meta.serviceType||'').toUpperCase()==='IMEI'?'imei':null,serial_option:String(meta.serviceType||'').toUpperCase()==='IMEI'&&appleSerialEligible(service.name),quantity:{enabled:Number(meta.qnt||0)>0},requirements_review:!raw.length&&String(meta.serviceType||'').toUpperCase()!=='IMEI',requirements_source:'supplier_metadata',fields:raw.slice(0,24).map(f=>({name:String(f.fieldname||f.name||'').slice(0,80),type:f.fieldtype==='dropdown'?'select':'text',required:Boolean(Number(f.required)),options:Array.isArray(f.fieldoptions)?f.fieldoptions.slice(0,80).map(x=>String(x).slice(0,120)):String(f.fieldoptions||'').split(/\r?\n|[|;]/).map(x=>x.trim()).filter(Boolean).slice(0,80)})).filter(f=>f.name)} };
+ router.get('/service-fields/:id',requireClient,(req,res)=>{const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return fail(res,400,'Serviço inválido');const s=q('SELECT s.id,s.name,m.metadata_json FROM services s LEFT JOIN supplier_service_fields m ON m.external_id=s.external_id WHERE s.id=? AND s.source=? AND s.available=1',id,'imeive');if(!s||!s.metadata_json)return fail(res,404,'Requisitos indisponíveis');res.json(safeFields(s))});
+ router.get('/order-drafts',requireClient,(req,res)=>res.json(all('SELECT id,service_name,device_model,identifier,status,created_at FROM client_order_drafts WHERE client_id=? ORDER BY id DESC LIMIT 100',req.client.id)));
+ router.post('/order-drafts',requireClient,limited('draft',12,3600000),(req,res)=>{
+  const service=String(req.body?.service_name||'').trim(),device=String(req.body?.device_model||'').trim(),identifier=String(req.body?.identifier||'').trim();
+  if(!service||service.length>160||!device||device.length>120||!identifier||identifier.length>160)return fail(res,400,'Preencha serviço, modelo e identificador');
+  if(req.body?.service_id!=null){const id=Number(req.body.service_id);const s=q('SELECT s.id,s.name,m.metadata_json FROM services s LEFT JOIN supplier_service_fields m ON m.external_id=s.external_id WHERE s.id=? AND s.source=? AND s.available=1',id,'imeive');if(!s||!s.metadata_json||s.name!==service)return fail(res,400,'Serviço indisponível ou divergente');const spec=safeFields(s);if(spec.requirements_review)return fail(res,422,'Requisitos do fornecedor incompletos: confirme os campos obrigatórios com o suporte antes de salvar o pedido');if(spec.fields.some(f=>f.required&&/pass(word)?|senha|secret|token|credential/i.test(f.name)))return fail(res,422,'Serviço exige dado sensível obrigatório e não está disponível para rascunho');const provided=req.body?.api_fields;if(!provided||typeof provided!=='object'||Array.isArray(provided))return fail(res,400,'Campos do fornecedor ausentes');if(Object.keys(provided).some(k=>!spec.fields.some(f=>f.name===k)&&!(spec.primary_identifier==='imei'&&k==='IMEI')&&!(spec.serial_option&&k==='SN')))return fail(res,400,'Campo não reconhecido');if(spec.primary_identifier==='imei'){const imei=String(provided.IMEI||'').trim(),sn=String(provided.SN||'').trim();if(spec.serial_option&&sn){if(imei||!/^[A-Za-z0-9-]{4,40}$/.test(sn))return fail(res,400,'Número de série inválido ou identificadores conflitantes')}else{if(sn)return fail(res,400,'Serial não permitido neste serviço');if(!/^\d{15}$/.test(imei)||!(()=>{let sum=0;for(let i=0;i<15;i++){let n=Number(imei[i]);if(i%2){n*=2;if(n>9)n-=9}sum+=n}return sum%10===0})())return fail(res,400,'IMEI obrigatório: 15 dígitos com checksum válido')}}for(const f of spec.fields){const v=provided[f.name];if(f.required&&(!v||typeof v!=='string'||!v.trim()))return fail(res,400,'Campo obrigatório: '+f.name);if(v!=null&&(typeof v!=='string'||v.length>500))return fail(res,400,'Valor inválido: '+f.name);if(f.type==='select'&&v&&f.options.length&&!f.options.includes(v))return fail(res,400,'Opção inválida: '+f.name);if(/pass(word)?|senha|secret|token|credential/i.test(f.name)&&v)return fail(res,422,'Este serviço requer dado sensível e não pode ser salvo em rascunho nesta fase')}if(Object.entries(provided).some(([k,v])=>/pass(word)?|senha|secret|token|credential/i.test(k)&&String(v||'').trim()))return fail(res,422,'Dados sensíveis não podem ser armazenados em rascunhos');req.body.details={api_fields:provided};}
+  const kind=req.body?.kind;
+  if(kind&&!['imei','server','api'].includes(kind))return fail(res,400,'Tipo de serviço inválido');
+  const details=req.body?.details||{};
+  if(!details||typeof details!=='object'||Array.isArray(details))return fail(res,400,'Detalhes inválidos');
+  const allowed=kind==='imei'?['mode','imei_secondary','comments','api_fields']:kind==='server'?['username','license_key','remote_connection','comments','api_fields']:['api_fields'];
+  if(Object.keys(details).some(k=>!allowed.includes(k))||Object.entries(details).some(([k,v])=>k!=='api_fields'&&v!==undefined&&(typeof v!=='string'||v.length>1000)))return fail(res,400,'Campos adicionais inválidos');
+  const validImei=v=>{if(!/^\d{15}$/.test(v))return false;let sum=0;for(let i=0;i<15;i++){let n=Number(v[i]);if(i%2){n*=2;if(n>9)n-=9}sum+=n}return sum%10===0};
+  if(kind==='imei'){if(!['single','dual','serial'].includes(details.mode))return fail(res,400,'Modo IMEI inválido');if(details.mode==='serial'? !/^[A-Za-z0-9-]{4,40}$/.test(identifier):!validImei(identifier))return fail(res,400,'IMEI ou serial inválido');if(details.mode==='dual'&&(!validImei(details.imei_secondary)||details.imei_secondary===identifier))return fail(res,400,'Segundo IMEI inválido')}
+  if(kind==='server'&&!req.body?.service_id&&!String(details.username||'').trim()&&!String(details.license_key||'').trim())return fail(res,400,'Conta ou licença obrigatória');
+  const r=run('INSERT INTO client_order_drafts(client_id,service_name,device_model,identifier,details_json) VALUES (?,?,?,?,?)',req.client.id,service,device,identifier,JSON.stringify({kind:kind||'legacy',details}));
+  event(req.client.id,'client_order_draft_create','success',req);res.status(201).json({id:Number(r.lastInsertRowid),status:'draft',charged:false,submitted_to_supplier:false});
+ });
  router.get('/orders',requireClient,(req,res)=>res.json(all(`SELECT o.id,o.device_brand,o.device_model,o.status,o.payment_status,o.created_at,o.updated_at FROM orders o JOIN client_order_links l ON l.order_id=o.id WHERE l.client_id=? ORDER BY o.id DESC LIMIT 100`,req.client.id)));
+ router.get('/orders/:id/history',requireClient,(req,res)=>{
+  const id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<1)return fail(res,400,'Pedido inválido');
+  const order=q('SELECT o.id,o.status,o.created_at,o.updated_at FROM orders o JOIN client_order_links l ON l.order_id=o.id WHERE l.client_id=? AND o.id=?',req.client.id,id);
+  if(!order)return fail(res,404,'Pedido não encontrado');
+  const allowed=new Set(['pendente','em_processamento','concluido','entregue','rejeitado','reembolsado']);
+  const history=all('SELECT action,detail,created_at FROM audit_logs WHERE entity=? AND entity_id=? AND action IN (?,?) ORDER BY id ASC LIMIT 100','orders',id,'created','status').map(e=>({event:e.action==='created'?'created':'status_changed',status:e.action==='status'&&allowed.has(e.detail)?e.detail:null,created_at:e.created_at}));
+  res.json({order_id:id,current_status:order.status,created_at:order.created_at,updated_at:order.updated_at,history,history_complete:false});
+ });
  router.get('/tickets',requireClient,(req,res)=>res.json(all(`SELECT t.id,t.order_id,t.subject,t.description,t.status,t.resolution,t.created_at,t.updated_at FROM support_tickets t JOIN client_ticket_links l ON l.ticket_id=t.id WHERE l.client_id=? ORDER BY t.id DESC LIMIT 100`,req.client.id)));
  router.post('/tickets',requireClient,(req,res)=>{
   const subject=String(req.body?.subject||'').trim(),description=String(req.body?.description||'').trim();
