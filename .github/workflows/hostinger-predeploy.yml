@@ -1,8 +1,8 @@
 name: WebSystem Hostinger pre-deployment verification
 on:
   push:
-    branches: [release/client-build-2026-11-10]
-    paths: ['.github/workflows/hostinger-predeploy.yml']
+    branches: [release/client-build-2026-11-10, integration/order-history-client-area-20261112]
+    paths: ['.github/workflows/hostinger-predeploy.yml', 'scripts/predeploy-hostinger.sh', 'scripts/verify-sqlite-restore.sh']
   workflow_dispatch:
 permissions:
   contents: read
