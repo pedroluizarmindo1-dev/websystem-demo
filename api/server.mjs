@@ -83,8 +83,38 @@ app.post('/api/orders/:id/public-link',guard,wrap((req,res)=>{
   res.json({url:'/consulta.html#'+id+'.'+token});
 }));
 app.get('/api/orders',guard,wrap((req,res)=>res.json(all('SELECT * FROM orders ORDER BY id DESC LIMIT 200'))));
-app.post('/api/orders',guard,wrap((req,res)=>{const s=req.body;if(!s.customer_name||!s.device_model)throw Error('Cliente e modelo obrigatórios');const r=run('INSERT INTO orders(customer_name,customer_contact,device_brand,device_model,service_id,price_brl,anydesk_id,payment_status) VALUES (?,?,?,?,?,?,?,?)',s.customer_name,s.customer_contact||'',s.device_brand||'',s.device_model,s.service_id||null,Number(s.price_brl)||0,s.anydesk_id||'',s.payment_status||'pendente');audit('orders',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
-app.patch('/api/orders/:id',guard,wrap((req,res)=>{const allowed=['pendente','em_processamento','concluido','entregue','rejeitado','reembolsado'];if(!allowed.includes(req.body.status))throw Error('Status inválido');const r=run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,Number(req.params.id));if(!r.changes)return res.sendStatus(404);audit('orders',Number(req.params.id),'status',req.body.status);res.json({ok:true})}));
+// Only actual events recorded after this migration appear; no fabricated historical entries.
+app.get('/api/orders/:id/status-history',guard,wrap((req,res)=>{
+ const id=Number(req.params.id);
+ if(!Number.isSafeInteger(id)||id<=0)return res.status(400).json({error:'ID inválido'});
+ if(!get('SELECT id FROM orders WHERE id=?',id))return res.status(404).json({error:'Ordem não encontrada'});
+ res.json(all('SELECT id,order_id,previous_status,new_status,origin,actor,created_at FROM order_status_history WHERE order_id=? ORDER BY id ASC',id));
+}));
+app.post('/api/orders',guard,wrap((req,res)=>{
+ const s=req.body;if(!s.customer_name||!s.device_model)throw Error('Cliente e modelo obrigatórios');
+ db.exec('BEGIN IMMEDIATE');
+ try{
+  const r=run('INSERT INTO orders(customer_name,customer_contact,device_brand,device_model,service_id,price_brl,anydesk_id,payment_status) VALUES (?,?,?,?,?,?,?,?)',s.customer_name,s.customer_contact||'',s.device_brand||'',s.device_model,s.service_id||null,Number(s.price_brl)||0,s.anydesk_id||'',s.payment_status||'pendente');
+  const id=Number(r.lastInsertRowid);
+  run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,?,?,?,?)',id,null,'pendente','creation',req.user.username||null);
+  audit('orders',id,'created');db.exec('COMMIT');res.status(201).json({id});
+ }catch(e){db.exec('ROLLBACK');throw e}
+}));
+app.patch('/api/orders/:id',guard,wrap((req,res)=>{
+ const allowed=['pendente','em_processamento','concluido','entregue','rejeitado','reembolsado'];
+ if(!allowed.includes(req.body.status))throw Error('Status inválido');
+ const id=Number(req.params.id);
+ if(!Number.isSafeInteger(id)||id<=0)return res.status(400).json({error:'ID inválido'});
+ db.exec('BEGIN IMMEDIATE');
+ try{
+  const previous=get('SELECT status FROM orders WHERE id=?',id);
+  if(!previous){db.exec('ROLLBACK');return res.sendStatus(404)}
+  if(previous.status===req.body.status){db.exec('COMMIT');return res.json({ok:true,changed:false})}
+  run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,id);
+  run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,?,?,?,?)',id,previous.status,req.body.status,'manual_api',req.user.username||null);
+  audit('orders',id,'status',req.body.status);db.exec('COMMIT');res.json({ok:true,changed:true});
+ }catch(e){db.exec('ROLLBACK');throw e}
+}));
 app.get('/api/remote-sessions',guard,wrap((req,res)=>res.json(all('SELECT * FROM remote_sessions ORDER BY id DESC LIMIT 200'))));
 app.post('/api/remote-sessions',guard,wrap((req,res)=>{const s=req.body;if(!get('SELECT id FROM orders WHERE id=?',Number(s.order_id))||!s.anydesk_id)throw Error('O.S. e ID AnyDesk obrigatórios');const r=run('INSERT INTO remote_sessions(order_id,anydesk_id,scheduled_at) VALUES (?,?,?)',Number(s.order_id),s.anydesk_id,s.scheduled_at||null);audit('remote_sessions',Number(r.lastInsertRowid),'created');res.status(201).json({id:Number(r.lastInsertRowid)})}));
 app.patch('/api/remote-sessions/:id',guard,wrap((req,res)=>{const allowed=['aguardando_conexao','conectado','aguardando_reinicio','concluido','falha','cancelado'];if(!allowed.includes(req.body.status))throw Error('Status inválido');const r=run('UPDATE remote_sessions SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,Number(req.params.id));if(!r.changes)return res.sendStatus(404);audit('remote_sessions',Number(req.params.id),'status',req.body.status);res.json({ok:true})}));
