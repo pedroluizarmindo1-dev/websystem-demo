@@ -28,6 +28,10 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Six-agent preflight and route smoke tests
         run: node scripts/agents-orchestrator.mjs
+      - name: Validate deploy script syntax and rollback rehearsal
+        run: |
+          bash -n scripts/deploy-hostinger.sh
+          bash scripts/rollback-rehearsal.sh
       - name: Save QA report
         if: always()
         uses: actions/upload-artifact@v4
