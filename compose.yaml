@@ -10,6 +10,7 @@ services:
       COOKIE_SECURE: "true"
       DATA_DIR: /app/data
       DEMO_MODE: "false"
+      APP_ORIGIN: ${APP_ORIGIN:-https://unlockertools.tech}
       ADMIN_ALLOWED_IPS: ${ADMIN_ALLOWED_IPS:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}
