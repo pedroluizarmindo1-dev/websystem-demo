@@ -44,7 +44,7 @@ test -f "$STAGE/compose.yaml" && test -f "$STAGE/Dockerfile" && test -f "$STAGE/
 rsync -a --exclude=.git --exclude=node_modules --exclude=data --exclude=backups --exclude=dist --exclude=.env --exclude=.env.production "$APP/" "$PREVIOUS/"
 rollback() {
  echo 'DEPLOY_FAILED: attempting application rollback'
- rsync -a --exclude=compose.override.yaml --exclude=data --exclude=backups --exclude=.env --exclude=.env.production --exclude=.git --exclude=node_modules --exclude=dist "$PREVIOUS/" "$APP/" || true
+ rsync -a --checksum --exclude=compose.override.yaml --exclude=data --exclude=backups --exclude=.env --exclude=.env.production --exclude=.git --exclude=node_modules --exclude=dist "$PREVIOUS/" "$APP/" || true
  cd "$APP"
  docker compose up -d --build --no-deps websystem || true
  echo 'ROLLBACK_ATTEMPTED: verify health and database manually'
