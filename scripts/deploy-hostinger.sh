@@ -11,7 +11,7 @@ exec > >(tee -a "$LOG") 2>&1
 echo "DEPLOY_START $STAMP"
 test "$(id -u)" -eq 0 || { echo 'Root required'; exit 1; }
 test -f "$APP/compose.yaml" && test -f "$ARCHIVE" && test -x "$BACKUP_CMD"
-for cmd in docker tar rsync python3; do command -v "$cmd" >/dev/null; done
+for cmd in docker tar rsync python3 curl; do command -v "$cmd" >/dev/null; done
 cd "$APP"
 docker compose config -q
 docker compose ps --status running --services | grep -qx websystem
@@ -62,6 +62,9 @@ for i in $(seq 1 30); do
 done
 test "$healthy" -eq 1
 docker compose exec -T websystem node -e "if(process.env.WALLET_REQUESTS_ENABLED==='true')process.exit(1)"
+# Keep rollback armed until the public reverse-proxy endpoint is healthy.
+curl --fail --show-error --silent --retry 5 --retry-delay 3 --max-time 15 https://unlockertools.tech/api/health >/dev/null
+echo 'DEPLOY_PUBLIC_HEALTH_OK'
 trap - ERR
 rm -f "$ARCHIVE"
 echo "DEPLOY_SUCCESS $STAMP"
