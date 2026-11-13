@@ -39,7 +39,7 @@ with tarfile.open(archive,"r:gz") as tf:
 print("DEPLOY_ARCHIVE_VALIDATED")
 PY
 tar -xzf "$ARCHIVE" -C "$STAGE"
-test -f "$STAGE/compose.yaml" && test -f "$STAGE/Dockerfile" && test -f "$STAGE/api/server.mjs"
+test -f "$STAGE/compose.yaml" && test -f "$STAGE/Dockerfile" && test -f "$STAGE/api/server.mjs" && test -f "$STAGE/release-manifest.json"
 # Save application files; do not copy live SQLite data or secret configuration.
 rsync -a --exclude=.git --exclude=node_modules --exclude=data --exclude=backups --exclude=dist --exclude=.env --exclude=.env.production "$APP/" "$PREVIOUS/"
 rollback() {
@@ -51,7 +51,7 @@ rollback() {
 }
 trap rollback ERR
 # Forward sync preserves server-local files and secrets; rollback removes only newly introduced unprotected application files.
-rsync -a --exclude=compose.override.yaml --exclude=data --exclude=backups --exclude=.env --exclude=.env.production --exclude=.git --exclude=node_modules --exclude=dist "$STAGE/" "$APP/"
+rsync -a --checksum --exclude=compose.override.yaml --exclude=data --exclude=backups --exclude=.env --exclude=.env.production --exclude=.git --exclude=node_modules --exclude=dist "$STAGE/" "$APP/"
 cd "$APP"
 docker compose config -q
 docker compose up -d --build --no-deps websystem
