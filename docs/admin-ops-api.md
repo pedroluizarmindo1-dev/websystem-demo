@@ -61,6 +61,13 @@ Drafts (`client_order_drafts`) are customer-owned and never become orders by the
 - `details_summary` contains only **field names and non-sensitive markers** (`kind`, `mode`, names of the provided fields, names of API fields). Values such as license keys, usernames, remote-connection data, comments or API field values are never returned (asserted by the QA with canary strings). Rows with empty or invalid JSON are tolerated.
 - If the client-area tables do not exist yet, the endpoint returns an empty result instead of failing.
 
+## Admin UI ("Operacoes" page)
+- `src/admin-ops.jsx` + `src/admin-ops.css`: one page with four tabs (Resumo, O.S., Rascunhos, Auditoria) that only calls the `GET` endpoints above. Changing an order status stays in the existing order table.
+- Hook in `src/main.jsx`, kept minimal because the whole `App` component is a single very long line: one import line, one admin-only button in the sidebar, one in the mobile dock and the page render. Sessions that are not `admin` never get the entry, and the API answers `403` anyway.
+- Tabs keep their filters while the page is open and reload their data every time they are shown again. The CSV buttons export what the applied filters select; API errors (`400`/`422`/`429`) are shown inline.
+- Styling reuses the existing panel, table, chip, badge and button classes; accents follow `--ws-accent`.
+- Regression: `node scripts/qa-admin-ops-ui.mjs` drives headless Chrome (`puppeteer-core`) against an isolated server with fictitious data: login, the four tabs, filters, pagination, a real CSV download, redaction of draft values, the mobile dock and the denial for a non-admin session. It needs `npm run build` first and a local Chrome (`CHROME_PATH` when it is not in a standard location); exit code `2` means a prerequisite is missing, not a pass. It runs in the `Integration quality gate` workflow and is intentionally not part of `scripts/agents-orchestrator.mjs`, because not every agent machine has Chrome. Screenshots are written to `reports/admin-ops-ui/` (not versioned).
+
 ## Operational notes
 - No migrations; no writes besides the export audit row. Rolling back is removing the router mount and the module.
 - All dates and day buckets are UTC (SQLite `CURRENT_TIMESTAMP`); for a UTC-3 operator the "day" rolls over at 21:00 local time.

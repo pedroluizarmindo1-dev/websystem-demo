@@ -1,0 +1,41 @@
+/* Admin "Operações" page (src/admin-ops.jsx). Panels, tables, chips, badges and buttons come from style.css;
+   only the layout helpers for filters, the daily chart and the extra dock button live here. */
+.opsTabs{padding:0 0 16px;margin:0}
+.opsChips{padding:14px 21px 0;margin:0}
+.opsToolbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:16px}
+.opsToolbar label,.opsFilters label{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:11px;font-weight:700;color:var(--ws-muted,#a3a3a3)}
+.opsToolbar select,.opsFilters select,.opsFilters input{width:100%;min-width:0;min-height:40px;background:#101010;border:1px solid #333;color:var(--ws-text,#ededed);border-radius:8px;padding:9px 10px;font:inherit;font-size:13px}
+.opsFilters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:end;padding:16px 21px;border-bottom:1px solid var(--ws-border,#252525)}
+.opsFilters .opsWide{grid-column:1/-1}
+.opsActions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.opsActions button,.opsToolbar button{min-height:40px;padding:9px 13px;border-radius:8px;font-size:12px;gap:7px;display:inline-flex;align-items:center}
+.opsHint{color:var(--ws-muted,#a3a3a3);font-size:11px;line-height:1.5}
+.opsPad{padding:12px 21px;margin:0}
+.opsError{margin:0 0 14px;padding:12px 14px;border:1px solid #6b3a32;background:#2a1714;color:#f0b5a7;border-radius:8px;font-size:12px;line-height:1.5}
+.panel>.opsError{margin:0 21px 14px}
+.opsPage .panel{margin-bottom:16px}
+.opsSplit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.opsSplit .panel{margin-bottom:0}
+.opsPage td small{display:block;margin-top:4px;color:var(--ws-muted,#a3a3a3);font-size:11px}
+.opsPage td.opsWrap{white-space:normal;overflow-wrap:anywhere;min-width:220px}
+.opsPage .opsNumber{text-align:right}
+.opsBars{display:flex;align-items:flex-end;gap:2px;height:140px;padding:18px 21px 0}
+.opsBar{flex:1 1 0;min-width:0;height:100%;display:flex;align-items:flex-end}
+.opsBar span{display:block;width:100%;min-height:2px;border-radius:3px 3px 0 0;background:var(--ws-accent,#2DD4BF)}
+.opsBar.opsBarEmpty span{background:var(--ws-border,#303030)}
+.opsBarsAxis{display:flex;justify-content:space-between;gap:12px;padding:8px 21px 16px;color:var(--ws-muted,#a3a3a3);font-size:11px}
+/* Administrators get a sixth dock entry: keep the bottom dock on one row and let the labels wrap instead of colliding. */
+.mobileDock:has(.opsDockButton){grid-template-columns:repeat(6,minmax(0,1fr))}
+.mobileDock:has(.opsDockButton) button{white-space:normal}
+.mobileDock:has(.opsDockButton) button span{font-size:8px;line-height:1.1}
+@media(max-width:1050px){.opsFilters{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){
+ .opsSplit{grid-template-columns:1fr}
+ .opsFilters{grid-template-columns:repeat(2,minmax(0,1fr));padding:13px}
+ .opsToolbar select,.opsFilters select,.opsFilters input{font-size:16px}
+ .opsChips{padding:12px 13px 0}
+ .opsPad{padding:10px 13px}
+ .panel>.opsError{margin:0 13px 12px}
+ .opsBars{height:110px;padding:14px 13px 0}
+ .opsBarsAxis{padding:8px 13px 14px}
+}
