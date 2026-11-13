@@ -70,6 +70,7 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           set -euo pipefail
+          printf '{"commit":"%s","version":"3.0.0-rc1"}\n' "$GITHUB_SHA" > release-manifest.json
           tar --exclude=.git --exclude=node_modules --exclude=data --exclude=backups --exclude=reports --exclude=dist --exclude=.env --exclude=.env.production -czf /tmp/websystem-release.tar.gz .
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes /tmp/websystem-release.tar.gz "$VPS_USER@$VPS_HOST:/tmp/websystem-release.tar.gz"
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes scripts/deploy-hostinger.sh "$VPS_USER@$VPS_HOST:/tmp/websystem-deploy-verified.sh"
