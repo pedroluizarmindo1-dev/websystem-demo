@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 const compose=readFileSync('compose.yaml','utf8');
+const dockerfile=readFileSync('Dockerfile','utf8');
 const server=readFileSync('api/server.mjs','utf8');
 const deploy=readFileSync('scripts/deploy-hostinger.sh','utf8');
 const workflow=readFileSync('.github/workflows/hostinger-release.yml','utf8');
@@ -23,6 +24,7 @@ assert.ok(deploy.includes('release-manifest.json'));
 assert.ok(workflow.includes('release-manifest.json'));
 assert.ok(server.includes('release-manifest.json'));
 assert.ok(server.includes('commit:manifest.commit'));
+assert.match(dockerfile,/COPY --from=build \/app\/release-manifest\.json \.\/release-manifest\.json/);
 assert.ok(deploy.includes('Public release provenance mismatch'));
 assert.ok(deploy.includes('EXPECTED_SHA='));
 assert.ok(deploy.indexOf('DEPLOY_PUBLIC_HEALTH_OK')<deploy.indexOf('trap - ERR'));
