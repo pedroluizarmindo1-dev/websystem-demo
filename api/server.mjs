@@ -1,4 +1,5 @@
 import {priceService} from './pricing.mjs';
+import {canTransitionOrder} from './order-transitions.mjs';
 import {supplierCall,syncSupplier} from './imeive.mjs';
 import {randomBytes,createHash} from 'node:crypto';
 import express from 'express';
@@ -193,6 +194,7 @@ app.patch('/api/orders/:id',adminOnly,wrap((req,res)=>{
   const current=get('SELECT status FROM orders WHERE id=?',id);
   if(!current){db.exec('ROLLBACK');return res.status(404).json({error:'Ordem não encontrada'})}
   if(current.status===req.body.status){db.exec('COMMIT');return res.json({ok:true,changed:false})}
+  if(!canTransitionOrder(current.status,req.body.status)){db.exec('ROLLBACK');return res.status(409).json({error:'Transição de status não permitida',from:current.status,to:req.body.status})}
   run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,id);
   audit('orders',id,'status',req.body.status);
   db.exec('COMMIT');res.json({ok:true,changed:true});
