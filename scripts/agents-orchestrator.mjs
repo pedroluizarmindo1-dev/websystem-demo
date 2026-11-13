@@ -38,6 +38,7 @@ try{
   attempt('QA','isolated authenticated non-admin RBAC',()=>run('node',['scripts/qa-rbac-isolated.mjs'],45000));
   attempt('QA','isolated two-client end-to-end flows',()=>run('node',['scripts/qa-client-isolated.mjs'],60000));
   attempt('QA','isolated IP restriction and abuse protection',()=>run('node',['scripts/qa-security-isolated.mjs'],60000));
+  attempt('QA','isolated admin operations (filters, reports, CSV export, audit)',()=>run('node',['scripts/qa-admin-ops-isolated.mjs'],60000));
   // 5. Debugger: log failed checks, no unreviewed production hotfix.
   const failed=report.agents.filter(x=>x.status==='FAIL');
   record('Debugger','failure triage',failed.length?'BLOCKED':'PASS',failed.length?failed.map(x=>x.task).join(', '):'No failed preflight checks');
