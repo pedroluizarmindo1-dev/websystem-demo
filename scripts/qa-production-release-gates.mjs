@@ -23,4 +23,7 @@ assert.ok(deploy.includes('release-manifest.json'));
 assert.ok(workflow.includes('release-manifest.json'));
 assert.ok(server.includes('release-manifest.json'));
 assert.ok(server.includes('commit:manifest.commit'));
+assert.ok(deploy.includes('Public release provenance mismatch'));
+assert.ok(deploy.includes('EXPECTED_SHA='));
+assert.ok(deploy.indexOf('DEPLOY_PUBLIC_HEALTH_OK')<deploy.indexOf('trap - ERR'));
 console.log('PRODUCTION_RELEASE_GATES_PASS');
