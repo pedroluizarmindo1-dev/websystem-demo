@@ -1,0 +1,23 @@
+name: Multi-agent PR coordination
+on:
+  pull_request:
+    branches: [release/client-build-2026-11-10]
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  coordination:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate integration freshness and concurrent file ownership
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          INTEGRATION_BRANCH: release/client-build-2026-11-10
+        run: node scripts/qa-agent-coordination.mjs
