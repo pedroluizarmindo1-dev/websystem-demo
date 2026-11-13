@@ -1,5 +1,3 @@
-import {readFileSync} from 'node:fs';
-
 const repo=process.env.GITHUB_REPOSITORY||'pedroluizarmindo1-dev/websystem-demo';
 const base=process.env.INTEGRATION_BRANCH||'release/client-build-2026-11-10';
 const token=process.env.GITHUB_TOKEN||'';
