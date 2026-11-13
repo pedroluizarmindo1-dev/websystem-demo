@@ -72,7 +72,14 @@ app.post('/api/auth/login',wrap((req,res)=>{const ip=req.ip||'unknown',now=Date.
 app.get('/api/auth/me',(req,res)=>{const user=session(req);if(!user)return res.status(401).json({error:'Login necessário'});res.json(user)});
 app.post('/api/auth/logout',(req,res)=>{const u=session(req);if(u)securityEvent(u.username,'admin_logout','success',req);revoke(cookies(req).ws_session);res.setHeader('Set-Cookie','ws_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');res.json({ok:true})});
 // Public health endpoint contains no private data.
-app.get('/api/health',(req,res)=>res.json({ok:true,app:'WebSystem UNLOCKER Tools',version:'1.0.0-rc1'}));
+app.get('/api/health',(req,res)=>{
+ let release={version:'1.0.0-rc1',commit:null};
+ try {
+  const manifest=JSON.parse(readFileSync(resolve(root,'release-manifest.json'),'utf8'));
+  if(typeof manifest.version==='string'&&/^[0-9]+\\.[0-9]+\\.[0-9]+-rc[0-9]+$/.test(manifest.version)&&typeof manifest.commit==='string'&&/^[a-f0-9]{40}$/.test(manifest.commit))release={version:manifest.version,commit:manifest.commit};
+ } catch { /* Legacy deployment without release manifest. */ }
+ res.json({ok:true,app:'WebSystem UNLOCKER Tools',...release});
+});
 app.get('/api/readiness',guard,(req,res)=>{if(req.user.role!=='admin')return res.status(403).json({error:'Acesso restrito'});const configured=!!(process.env.IMEIVE_API_URL&&process.env.IMEIVE_API_USERNAME&&process.env.IMEIVE_API_KEY);const count=get("SELECT COUNT(*) AS n FROM services WHERE source='imeive'")?.n||0;res.setHeader('Cache-Control','no-store');res.json({version:'1.0.0-rc1',supplier_credentials_configured:configured,supplier_catalog_count:count,database_persistent:process.env.DATA_DIR?true:false,automatic_fulfillment_enabled:false,production_ready:false})});
 // Token-protected reseller endpoints are mounted before the browser session guard.
 mountClientArea(app,db,{adminGuard:guard});
