@@ -79,4 +79,22 @@ jobs:
       - name: Public HTTPS smoke test
         run: |
           set -euo pipefail
-          curl --fail --show-error --silent --retry 5 --retry-delay 3 --max-time 15 https://unlockertools.tech/api/health
+          node --input-type=module <<'NODE'
+          const expected=process.env.GITHUB_SHA;
+          let response;
+          for(let i=0;i<6;i++){
+            try{
+              response=await fetch('https://unlockertools.tech/api/health',{signal:AbortSignal.timeout(15000),cache:'no-store'});
+              if(response.ok){
+                const data=await response.json();
+                if(data.ok===true && data.commit===expected && data.version==='3.0.0-rc1'){
+                  console.log('PUBLIC_RELEASE_SHA_VERIFIED',expected);
+                  process.exit(0);
+                }
+                console.error('PUBLIC_RELEASE_MISMATCH',{status:response.status,version:data.version,commit:data.commit,expected});
+              }
+            }catch(e){console.error('PUBLIC_RELEASE_CHECK_ERROR',e.message)}
+            await new Promise(resolve=>setTimeout(resolve,3000));
+          }
+          process.exit(1);
+          NODE
