@@ -28,4 +28,9 @@ assert.match(dockerfile,/COPY --from=build \/app\/release-manifest\.json \.\/rel
 assert.ok(deploy.includes('Public release provenance mismatch'));
 assert.ok(deploy.includes('EXPECTED_SHA='));
 assert.ok(deploy.indexOf('DEPLOY_PUBLIC_HEALTH_OK')<deploy.indexOf('trap - ERR'));
+for(const wf of ['.github/workflows/hostinger-docker-staging.yml','.github/workflows/container-build.yml']){
+ const text=readFileSync(wf,'utf8');
+ const m=text.indexOf('release-manifest.json'),b=text.search(/docker build/);
+ assert.ok(m>-1&&b>-1&&m<b,wf+' must generate release-manifest.json before docker build');
+}
 console.log('PRODUCTION_RELEASE_GATES_PASS');
