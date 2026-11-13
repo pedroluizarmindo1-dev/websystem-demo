@@ -76,7 +76,7 @@ app.get('/api/health',(req,res)=>{
  let release={version:'1.0.0-rc1',commit:null};
  try {
   const manifest=JSON.parse(readFileSync(resolve(root,'release-manifest.json'),'utf8'));
-  if(typeof manifest.version==='string'&&/^[0-9]+\\.[0-9]+\\.[0-9]+-rc[0-9]+$/.test(manifest.version)&&typeof manifest.commit==='string'&&/^[a-f0-9]{40}$/.test(manifest.commit))release={version:manifest.version,commit:manifest.commit};
+  if(typeof manifest.version==='string'&&/^[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$/.test(manifest.version)&&typeof manifest.commit==='string'&&/^[a-f0-9]{40}$/.test(manifest.commit))release={version:manifest.version,commit:manifest.commit};
  } catch { /* Legacy deployment without release manifest. */ }
  res.json({ok:true,app:'WebSystem UNLOCKER Tools',...release});
 });
