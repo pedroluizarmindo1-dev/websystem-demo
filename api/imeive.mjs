@@ -5,7 +5,16 @@ export async function supplierCall(action){
  const body=new URLSearchParams({username,apiaccesskey:key,requestformat:'JSON',action});
  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},body,redirect:'error',signal:AbortSignal.timeout(25000)});
  if(!response.ok)throw Error('Fornecedor HTTP '+response.status);
- const raw=await response.text();let data;
+ const maxBytes=5*1024*1024;
+ const declared=Number(response.headers.get('content-length'));
+ if(Number.isFinite(declared)&&declared>maxBytes)throw Error('Resposta do fornecedor excede o limite permitido');
+ const reader=response.body?.getReader();
+ if(!reader)throw Error('Fornecedor retornou resposta vazia');
+ const chunks=[];let total=0;
+ try{
+  while(true){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;if(total>maxBytes){await reader.cancel();throw Error('Resposta do fornecedor excede o limite permitido')}chunks.push(value)}
+ }finally{reader.releaseLock()}
+ const raw=new TextDecoder().decode(Buffer.concat(chunks.map(x=>Buffer.from(x)),total));let data;
  try{data=JSON.parse(raw)}catch{throw Error('Fornecedor retornou formato não JSON')}
  if(!Array.isArray(data.SUCCESS)||!data.SUCCESS.length)throw Error('Fornecedor: '+String(data.ERROR?.[0]?.MESSAGE||'Resposta sem confirmação de sucesso').slice(0,160));
  return data.SUCCESS;
