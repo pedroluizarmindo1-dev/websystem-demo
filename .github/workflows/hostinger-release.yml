@@ -33,6 +33,7 @@ jobs:
           bash -n scripts/deploy-hostinger.sh
           bash scripts/rollback-rehearsal.sh
           node scripts/qa-production-release-gates.mjs
+          node scripts/qa-supplier-response.mjs
       - name: Save QA report
         if: always()
         uses: actions/upload-artifact@v4
