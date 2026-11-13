@@ -63,8 +63,25 @@ done
 test "$healthy" -eq 1
 docker compose exec -T websystem node -e "if(process.env.WALLET_REQUESTS_ENABLED==='true')process.exit(1)"
 # Keep rollback armed until the public reverse-proxy endpoint is healthy.
-curl --fail --show-error --silent --retry 5 --retry-delay 3 --max-time 15 https://unlockertools.tech/api/health >/dev/null
-echo 'DEPLOY_PUBLIC_HEALTH_OK'
+# Validate public provenance while rollback is still armed.
+EXPECTED_SHA=$(python3 - "$APP/release-manifest.json" <<'PY'
+import json,sys,re
+m=json.load(open(sys.argv[1]))
+sha=m.get("commit","")
+if not isinstance(sha,str) or not re.fullmatch(r"[0-9a-f]{40}",sha):
+ raise SystemExit("Invalid release commit in manifest")
+print(sha)
+PY
+)
+PUBLIC_HEALTH=$(curl --fail --show-error --silent --retry 5 --retry-delay 3 --max-time 15 https://unlockertools.tech/api/health)
+printf '%s' "$PUBLIC_HEALTH" | python3 -c '
+import json,sys
+expected=sys.argv[1]
+payload=json.load(sys.stdin)
+if payload.get("ok") is not True or payload.get("commit")!=expected or payload.get("version")!="3.0.0-rc1":
+ raise SystemExit("Public release provenance mismatch")
+print("DEPLOY_PUBLIC_HEALTH_OK",expected)
+' "$EXPECTED_SHA"
 trap - ERR
 rm -f "$ARCHIVE"
 echo "DEPLOY_SUCCESS $STAMP"
