@@ -12,6 +12,9 @@ services:
       DEMO_MODE: "false"
       APP_ORIGIN: ${APP_ORIGIN:-https://unlockertools.tech}
       ADMIN_ALLOWED_IPS: ${ADMIN_ALLOWED_IPS:-}
+      # The host reverse proxy reaches this container from the Docker bridge gateway (a private address), not from
+      # loopback. Without this, X-Forwarded-For is ignored and every visitor shares the gateway address.
+      TRUST_PROXY: ${TRUST_PROXY:-loopback,uniquelocal}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}
       SMTP_USER: ${SMTP_USER:-}

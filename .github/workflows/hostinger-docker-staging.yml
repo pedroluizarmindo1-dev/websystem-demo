@@ -39,6 +39,8 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/client/)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/orders)" = 401
           docker exec websystem-staging node -e "if(process.env.WALLET_REQUESTS_ENABLED==='true')process.exit(1)"
+      - name: Client IP behind the published Docker port (TRUST_PROXY regression)
+        run: bash scripts/qa-proxy-trust-docker.sh websystem:release
       - name: Container logs on failure
         if: failure()
         run: docker logs websystem-staging || true

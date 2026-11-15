@@ -18,7 +18,13 @@ assert.match(deploy,/rsync -a --checksum --delete/);
 assert.match(deploy,/trap rollback ERR/);
 assert.match(compose,/127\.0\.0\.1:3100:3100/);
 assert.match(compose,/COOKIE_SECURE:\s*"true"/);
-assert.match(server,/app\.set\('trust proxy','loopback'\)/);
+// Forwarded client IPs: only our own reverse proxy is trusted (TRUST_PROXY); trust-everything values never start the server.
+assert.match(server,/app\.set\('trust proxy',resolveTrustProxy\(process\.env\.TRUST_PROXY\)\)/);
+const {resolveTrustProxy}=await import('../api/proxy-trust.mjs');
+assert.deepEqual(resolveTrustProxy(undefined),['loopback']);
+for(const unsafe of ['true','1','*','0.0.0.0/0','::/0'])assert.throws(()=>resolveTrustProxy(unsafe));
+assert.match(compose,/TRUST_PROXY:\s*\$\{TRUST_PROXY:-loopback,uniquelocal\}/);
+assert.match(compose,/-\s*"127\.0\.0\.1:3100:3100"/); // private peers are trusted only while the port stays on loopback
 assert.match(server,/origin!==process\.env\.APP_ORIGIN/);
 assert.ok(deploy.includes('release-manifest.json'));
 assert.ok(workflow.includes('release-manifest.json'));

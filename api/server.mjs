@@ -10,12 +10,13 @@ import {mountWallet} from './wallet.mjs';
 import {getAnnouncements} from './telegram-announcements.mjs';
 import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
 import {verify,issue,getSession,revoke} from './auth.mjs';
+import {resolveTrustProxy,forwardedIgnoredWarning} from './proxy-trust.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 const app=express();app.disable('x-powered-by');
-// Trust only the local Nginx reverse proxy; never accept arbitrary client-supplied forwarded IPs.
-app.set('trust proxy','loopback');
+// Trust only our own reverse proxy (TRUST_PROXY, default 'loopback'); never accept arbitrary client-supplied forwarded IPs.
+app.set('trust proxy',resolveTrustProxy(process.env.TRUST_PROXY));app.use(forwardedIgnoredWarning());
 const allowedAdminIPs=()=>String(process.env.ADMIN_ALLOWED_IPS||'').split(',').map(s=>s.trim()).filter(Boolean);
 const adminIpGate=(req,res,next)=>{const allowed=allowedAdminIPs();if(!allowed.length)return res.status(503).send('Painel administrativo não configurado');if(!allowed.includes(req.ip))return res.status(404).send('Não encontrado');next()};
 // Bounded in-memory rate limit (also enforce at reverse proxy for multi-worker deployments).

@@ -35,6 +35,7 @@ try{
     if(child.error||child.status!==0)throw Error((child.stderr||child.stdout||child.error?.message||'smoke failure').slice(-1000));
     return child.stdout.trim().slice(-600);
   });
+  attempt('QA','isolated client IP resolution behind a reverse proxy (TRUST_PROXY)',()=>run('node',['scripts/qa-proxy-trust-isolated.mjs'],90000));
   attempt('QA','isolated authenticated non-admin RBAC',()=>run('node',['scripts/qa-rbac-isolated.mjs'],45000));
   attempt('QA','isolated two-client end-to-end flows',()=>run('node',['scripts/qa-client-isolated.mjs'],60000));
   attempt('QA','isolated IP restriction and abuse protection',()=>run('node',['scripts/qa-security-isolated.mjs'],60000));
