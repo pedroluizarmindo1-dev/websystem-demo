@@ -55,6 +55,9 @@ export function mountClientArea(app,db,{adminGuard}){
  const flowLimits=new Map();
  const limited=(name,max,windowMs)=>(req,res,next)=>{const now=Date.now(),key=name+':'+req.ip;let x=flowLimits.get(key);if(!x||x.until<now)x={n:0,until:now+windowMs};flowLimits.set(key,x);if(x.n++>=max)return fail(res,429,'Aguarde antes de tentar novamente');if(flowLimits.size>5000)for(const [k,v] of flowLimits)if(v.until<now)flowLimits.delete(k);next()};
  const mail=(to,subject,body)=>hostingerMailReady()?sendHostingerMail(to,subject,body):transport().sendMail({from:process.env.MAIL_FROM,to,subject,text:body});
+ // Fire-and-forget delivery for flows whose answer must not depend on whether the address has an account:
+ // awaiting the mail server only when an account exists would reveal it through the response time.
+ const mailLater=(to,subject,body,label)=>{Promise.resolve().then(()=>mail(to,subject,body)).catch(()=>console.error(label+' failed'))};
  const makeToken=(id,purpose)=>{const token=randomBytes(32).toString('hex');run('DELETE FROM client_auth_tokens WHERE client_id=? AND purpose=?',id,purpose);run('INSERT INTO client_auth_tokens(token_hash,client_id,purpose,expires_at) VALUES (?,?,?,?)',digest(token),id,purpose,Date.now()+30*60000);return token};
  router.post('/register',limited('register',5,3600000),async(req,res)=>{
   if(!mailReady())return fail(res,503,'Cadastro indisponível temporariamente');
@@ -63,21 +66,29 @@ export function mountClientArea(app,db,{adminGuard}){
   const country=String(req.body?.country_code||'').toUpperCase(),phone=String(req.body?.phone_e164||''),locale=String(req.body?.preferred_locale||'pt-BR');
   if(!/^[A-Z]{2}$/.test(country)||!/^\+[1-9]\d{7,14}$/.test(phone)||!['pt-BR','en','es'].includes(locale))return fail(res,400,'Informe país, telefone internacional e idioma válidos');
   const old=q('SELECT id,enabled FROM client_users WHERE email=?',email);
-  if(old?.enabled)return res.json({ok:true,message:'Se o cadastro puder ser realizado, você receberá um e-mail'});
-  const salt=randomBytes(24).toString('hex');let id;
-  if(old){id=old.id;run('UPDATE client_users SET display_name=?,password_salt=?,password_hash=?,country_code=?,phone_e164=?,preferred_locale=? WHERE id=? AND enabled=0',name,salt,hashPassword(password,salt),country,phone,locale,id)}
-  else id=Number(run('INSERT INTO client_users(email,display_name,password_salt,password_hash,enabled,country_code,phone_e164,preferred_locale) VALUES (?,?,?,?,0,?,?,?)',email,name,salt,hashPassword(password,salt),country,phone,locale).lastInsertRowid);
+  // No account enumeration: a new, a pending and an already active address get the same work (password hash and one
+  // e-mail), the same status and the same message. An active account is never modified here; its owner is told by e-mail.
+  const salt=randomBytes(24).toString('hex'),passwordHash=hashPassword(password,salt);
+  const accepted={ok:true,message:'Se o cadastro puder ser concluído, você receberá um e-mail com as próximas instruções'};
+  if(old?.enabled){
+   try{await mail(email,'Tentativa de cadastro na UNLOCKER Tools',`Recebemos um pedido de cadastro com este e-mail, mas já existe uma conta ativa.\nSe foi você, entre em ${process.env.APP_ORIGIN}/client/ ou use "Esqueci minha senha".\nSe não foi você, ignore esta mensagem: nada foi alterado na sua conta.`)}
+   catch(e){console.error('Registration notice email failed');return fail(res,503,'Não foi possível enviar o e-mail. Tente mais tarde')}
+   event(old.id,'client_register','existing_account',req);return res.status(202).json(accepted);
+  }
+  let id;
+  if(old){id=old.id;run('UPDATE client_users SET display_name=?,password_salt=?,password_hash=?,country_code=?,phone_e164=?,preferred_locale=? WHERE id=? AND enabled=0',name,salt,passwordHash,country,phone,locale,id)}
+  else id=Number(run('INSERT INTO client_users(email,display_name,password_salt,password_hash,enabled,country_code,phone_e164,preferred_locale) VALUES (?,?,?,?,0,?,?,?)',email,name,salt,passwordHash,country,phone,locale).lastInsertRowid);
   const token=makeToken(id,'verify');
   try{await mail(email,'Confirme sua conta UNLOCKER Tools',`Para confirmar seu cadastro, acesse: ${process.env.APP_ORIGIN}/client/?view=verify&token=${token}\nEste link expira em 30 minutos.`)}
   catch(e){console.error('Registration email failed');return fail(res,503,'Não foi possível enviar o e-mail. Tente mais tarde')}
-  event(id,'client_register','pending_verification',req);res.status(202).json({ok:true,message:'Confira seu e-mail para confirmar a conta'});
+  event(id,'client_register','pending_verification',req);res.status(202).json(accepted);
  });
  router.post('/resend-verification',limited('resend',4,3600000),async(req,res)=>{
   if(!mailReady())return fail(res,503,'Envio de e-mail temporariamente indisponível');
   const email=String(req.body?.email||'').trim().toLowerCase();
   if(!validEmail(email))return fail(res,400,'Informe um e-mail válido');
   const u=q('SELECT id FROM client_users WHERE email=? AND enabled=0',email);
-  if(u){const token=makeToken(u.id,'verify');try{await mail(email,'Confirme sua conta UNLOCKER Tools',`Para confirmar seu cadastro, acesse: ${process.env.APP_ORIGIN}/client/?view=verify&token=${token}\nEste link expira em 30 minutos.`)}catch(e){console.error('Verification resend failed');return fail(res,503,'Não foi possível enviar o e-mail. Tente novamente mais tarde')}}
+  if(u){const token=makeToken(u.id,'verify');mailLater(email,'Confirme sua conta UNLOCKER Tools',`Para confirmar seu cadastro, acesse: ${process.env.APP_ORIGIN}/client/?view=verify&token=${token}\nEste link expira em 30 minutos.`,'Verification resend')}
   res.json({ok:true,message:'Se houver um cadastro pendente, enviaremos um novo link. Confira também a pasta de spam.'});
  });
  router.post('/verify-email',limited('verify',12,900000),(req,res)=>{
@@ -91,7 +102,7 @@ export function mountClientArea(app,db,{adminGuard}){
   if(!mailReady())return fail(res,503,'Recuperação indisponível temporariamente');
   const email=String(req.body?.email||'').trim().toLowerCase();if(!validEmail(email))return fail(res,400,'E-mail inválido');
   const u=q('SELECT id FROM client_users WHERE email=? AND enabled=1',email);
-  if(u){const token=makeToken(u.id,'reset');try{await mail(email,'Recuperação de senha UNLOCKER Tools',`Para definir uma nova senha, acesse: ${process.env.APP_ORIGIN}/client/?view=reset&token=${token}\nEste link expira em 30 minutos.`)}catch(e){console.error('Password reset email failed')}}
+  if(u){const token=makeToken(u.id,'reset');mailLater(email,'Recuperação de senha UNLOCKER Tools',`Para definir uma nova senha, acesse: ${process.env.APP_ORIGIN}/client/?view=reset&token=${token}\nEste link expira em 30 minutos.`,'Password reset email')}
   res.json({ok:true,message:'Se existir uma conta, enviaremos instruções ao e-mail cadastrado'});
  });
  router.post('/reset-password',limited('reset',8,900000),(req,res)=>{
@@ -194,12 +205,12 @@ export function mountClientArea(app,db,{adminGuard}){
   if(sending)return fail(res,409,'Envio em andamento');
   sending=true;
   try{
-  if(!mailReady())return fail(res,503,'SMTP não configurado');
+  if(!mailReady())return fail(res,503,'E-mail não configurado');
   const rows=all("SELECT * FROM mail_outbox WHERE status='pending' AND attempts<3 ORDER BY id LIMIT 10");
-  const tx=transport();let sent=0,failed=0;
+  let sent=0,failed=0;
   for(const m of rows){
    run("UPDATE mail_outbox SET status='sending',attempts=attempts+1 WHERE id=? AND status='pending'",m.id);
-   try{await tx.sendMail({from:process.env.MAIL_FROM,to:m.recipient,subject:m.subject,text:m.body});run("UPDATE mail_outbox SET status='sent',sent_at=CURRENT_TIMESTAMP,last_error=NULL WHERE id=?",m.id);sent++}
+   try{await mail(m.recipient,m.subject,m.body);run("UPDATE mail_outbox SET status='sent',sent_at=CURRENT_TIMESTAMP,last_error=NULL WHERE id=?",m.id);sent++}
    catch(e){run("UPDATE mail_outbox SET status='pending',last_error=? WHERE id=?",String(e.message).slice(0,300),m.id);failed++}
   }
   res.json({sent,failed});
