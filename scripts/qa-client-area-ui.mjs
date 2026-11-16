@@ -92,10 +92,15 @@ try{
   await page.waitForSelector('[data-client-panel="order"]:not([hidden]) #draftOrder');
   await page.type('#imeiPrimary','490154203237518');await page.type('#draftOrder [name=device_model]','Galaxy S22');
   await page.click('#reviewDraft');await page.waitForSelector('#orderReview:not([hidden])');
+  const review=await page.$eval('#orderReviewSummary',r=>r.textContent);
+  check(!/[{}]/.test(review)&&review.includes('Identificação: IMEI único')&&review.includes('Tipo: IMEI / Serial')&&!review.includes('Detalhes:'),name+': readable order review '+JSON.stringify(review.slice(0,200)));
   await noOverflow('order review');await page.screenshot({path:join(shots,name+'-order-review.png'),fullPage:true});
   await page.click('#saveDraft');
   await page.waitForFunction(()=>/Rascunho salvo/.test(document.getElementById('msg').textContent)&&!document.querySelector('[data-client-panel="place"]').hidden);
-  check(await page.$eval('#msg',m=>{const s=getComputedStyle(m);return s.display!=='none'&&s.position==='fixed'&&m.getBoundingClientRect().width>200}),name+': confirmation toast visible while signed in');
+  const toast=await page.$eval('#msg',m=>{const s=getComputedStyle(m),r=m.getBoundingClientRect(),nav=document.querySelector('.ca-side').getBoundingClientRect();return {ok:s.display!=='none'&&s.position==='fixed'&&r.width>200,top:Math.round(r.top),bottom:Math.round(r.bottom),navTop:Math.round(nav.top),h:innerHeight}});
+  check(toast.ok,name+': confirmation toast visible while signed in');
+  // phone: the toast sits just above the bottom navigation (not over the header); desktop: top-right
+  check(mobile?toast.bottom<=toast.navTop&&toast.top>toast.h/2:toast.top<toast.h/3,name+': toast placement '+JSON.stringify(toast));
   await page.waitForFunction(()=>[...document.querySelectorAll('#drafts>article')].some(a=>a.textContent.includes('QA Unlock Code Samsung')&&a.querySelector('.ca-pill')));
 
   // support ticket
@@ -114,7 +119,22 @@ try{
   check(!problems.length,name+': '+problems.join(' | '));
   await ctx.close();
  }
- console.log('CLIENT_AREA_UI_PASS: login, sidebar/bottom bar, dashboard indicators, order badges and history, catalog -> draft, ticket, profile, logout on desktop and phone');
+ // English locale: static texts and status badges follow the language selector
+ {const ctx=await browser.createBrowserContext();const page=await ctx.newPage();page.setDefaultTimeout(15000);
+  await page.evaluateOnNewDocument(()=>{try{localStorage.setItem('ut_locale','en')}catch{}});
+  await page.setViewport({width:1280,height:800});
+  await page.goto(base+'/client/',{waitUntil:'domcontentloaded'});await page.waitForSelector('#loginBox:not([hidden]) #login');
+  await page.waitForFunction(()=>document.querySelector('.ca-auth-intro h1').textContent.includes('Orders and support'));
+  await page.type('#login [name=email]',EMAIL);await page.type('#login [name=password]',PASSWORD);await page.click('#login button');
+  await page.waitForFunction(()=>document.body.classList.contains('ca-signed-in'));
+  const nav=await page.$$eval('#clientNav button',b=>b.map(x=>x.textContent.trim()));
+  check(nav.includes('New order')&&nav.includes('Wallet')&&nav.includes('Profile'),'en: navigation '+JSON.stringify(nav));
+  await page.click('#clientNav [data-panel="orders"]');await page.waitForSelector('#orders>article .ca-pill');
+  const pills=await page.$$eval('#orders>article .ca-pill',p=>p.map(x=>x.textContent));
+  check(pills.includes('Completed')&&pills.includes('In progress')&&pills.some(x=>x.startsWith('Payment: ')),'en: status badges '+JSON.stringify(pills));
+  await page.screenshot({path:join(shots,'desktop-en-orders.png'),fullPage:true});
+  await ctx.close()}
+ console.log('CLIENT_AREA_UI_PASS: login, sidebar/bottom bar, dashboard indicators, order badges and history, catalog -> draft, ticket, profile, logout on desktop and phone; readable order review; toast placement; English locale');
 }finally{
  if(browser)await browser.close().catch(()=>{});
  if(child){child.kill('SIGTERM');await delay(150)}
