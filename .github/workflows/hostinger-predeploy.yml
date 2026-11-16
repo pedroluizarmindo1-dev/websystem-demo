@@ -4,6 +4,8 @@ on:
     branches: [release/client-build-2026-11-10, integration/order-history-client-area-20261112]
     paths: ['.github/workflows/hostinger-predeploy.yml', 'scripts/predeploy-hostinger.sh', 'scripts/verify-sqlite-restore.sh']
   workflow_dispatch:
+  schedule:
+    - cron: '15 3 * * *'
 permissions:
   contents: read
 jobs:
