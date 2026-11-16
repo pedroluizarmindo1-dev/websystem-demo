@@ -34,6 +34,11 @@ export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
   if(action==='placeimeiorder'||action==='placeorder'){
    const serviceId=Number(req.body?.serviceid||req.body?.service_id),imei=String(req.body?.imei||req.body?.device_id||'').trim();
    if(!Number.isSafeInteger(serviceId)||!/^[-A-Za-z0-9]{8,40}$/.test(imei))return error(res,400,'Serviço e identificador válidos são obrigatórios');
+   // Optional backward-compatible idempotency key; clients should reuse it on retries.
+   const requestKey=String(req.headers['idempotency-key']||req.body?.request_id||'').trim();
+   if(requestKey && (requestKey.length>128||!/^[A-Za-z0-9_.:-]{8,128}$/.test(requestKey)))return error(res,400,'Chave de idempotência inválida');
+   const requestHash=requestKey?hash(requestKey):null;
+   const fingerprint=hash(JSON.stringify([serviceId,imei]));
    const s=get('SELECT * FROM services WHERE id=?',serviceId);
    if(!s)return error(res,404,'Serviço não encontrado');
    // Record request only: no wallet debit or external supplier action until confirmed.
@@ -41,8 +46,17 @@ export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
    db.exec('BEGIN IMMEDIATE');
    let id;
    try{
+    if(requestHash){
+     const prior=get('SELECT order_id,request_fingerprint FROM reseller_order_requests WHERE reseller_key_id=? AND request_key_hash=?',req.reseller.id,requestHash);
+     if(prior){
+      if(prior.request_fingerprint!==fingerprint){db.exec('ROLLBACK');return error(res,409,'Chave já utilizada com outro pedido')}
+      db.exec('COMMIT');
+      return res.status(202).json({SUCCESS:[{ID:prior.order_id,STATUS:'Pending',MESSAGE:'Solicitação já registrada. Aguardando validação; não enviada ao fornecedor.'}]});
+     }
+    }
     const order=run('INSERT INTO orders(customer_name,device_model,service_id,price_brl,payment_status,status) VALUES (?,?,?,?,?,?)',req.reseller.label,imei,serviceId,cost,'pendente','pendente');
     id=Number(order.lastInsertRowid);
+    if(requestHash)run('INSERT INTO reseller_order_requests(reseller_key_id,request_key_hash,request_fingerprint,order_id) VALUES (?,?,?,?)',req.reseller.id,requestHash,fingerprint,id);
     run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,NULL,?,?,?)',id,'pendente','reseller_api',req.reseller.label);
     audit('orders',id,'reseller_api_request',req.reseller.label);
     db.exec('COMMIT');

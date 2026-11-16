@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: Six-agent preflight and route smoke tests
@@ -35,6 +35,7 @@ jobs:
           node scripts/qa-production-release-gates.mjs
           node scripts/qa-supplier-response.mjs
           node scripts/qa-order-transitions.mjs
+          node scripts/qa-dhru-idempotency.mjs
       - name: Save QA report
         if: always()
         uses: actions/upload-artifact@v4

@@ -15,12 +15,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - name: Security and isolated functional tests
         run: |
           npm audit --omit=dev --audit-level=high
           node scripts/qa-rbac-isolated.mjs
           node scripts/qa-client-isolated.mjs
+          node scripts/qa-dhru-idempotency.mjs
       - name: Generate release manifest for the image (same format as the deploy job)
         run: printf '{"commit":"%s","version":"3.0.0-rc1"}\n' "$GITHUB_SHA" > release-manifest.json
       - name: Build production container

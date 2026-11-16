@@ -4,6 +4,8 @@ import {resolve} from 'node:path';
 import {mkdirSync} from 'node:fs';
 const dir=resolve(import.meta.dirname,'../data');mkdirSync(dir,{recursive:true});
 export const authdb=new DatabaseSync(resolve(dir,'auth.sqlite'));
+authdb.exec('PRAGMA busy_timeout=15000');
+authdb.exec('PRAGMA journal_mode=WAL');
 authdb.exec(`CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,username TEXT UNIQUE NOT NULL,password_salt TEXT NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'admin',created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id),expires_at INTEGER NOT NULL);`);
 export function hashPassword(p,salt=randomBytes(24).toString('hex')){return {salt,hash:scryptSync(p,salt,64).toString('hex')}}
