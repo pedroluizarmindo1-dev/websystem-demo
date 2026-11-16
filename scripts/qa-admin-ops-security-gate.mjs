@@ -73,4 +73,3 @@ try {
   if(db)db.close();
   rmSync(tmp,{recursive:true,force:true});
 }
-[exit status 0]
