@@ -21,7 +21,7 @@ export function resolveTrustProxy(raw){
   if(KEYWORDS.has(entry))continue;
   const [address,prefix,...extra]=entry.split('/');
   const family=isIP(address);
-  if(!family||extra.length||(prefix!==undefined&&!/^\\d{1,3}$/.test(prefix)))throw Error('TRUST_PROXY: unsupported entry "'+entry.slice(0,40)+'" (use loopback, linklocal, uniquelocal, a valid IP address or CIDR range)');
+  if(!family||extra.length||(prefix!==undefined&&!/^[0-9]{1,3}$/.test(prefix)))throw Error('TRUST_PROXY: unsupported entry "'+entry.slice(0,40)+'" (use loopback, linklocal, uniquelocal, a valid IP address or CIDR range)');
   if(prefix!==undefined){
    const bits=Number(prefix),max=family===4?32:128,min=family===4?8:7;
    if(bits<min||bits>max)throw Error('TRUST_PROXY: range "'+entry+'" is invalid or too broad');
