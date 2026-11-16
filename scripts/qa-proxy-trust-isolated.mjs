@@ -57,8 +57,8 @@ try{
  // ---- parser: safe values accepted, trust-everything values refused
  check(JSON.stringify(resolveTrustProxy(undefined))==='["loopback"]'&&JSON.stringify(resolveTrustProxy(''))==='["loopback"]','default is loopback');
  check(JSON.stringify(resolveTrustProxy(' Loopback , UniqueLocal '))==='["loopback","uniquelocal"]','keywords are normalised');
- for(const ok of ['172.18.0.1','172.18.0.0/16','10.0.0.0/8','::1','fc00::/7','loopback,linklocal,10.1.2.3'])check(Array.isArray(resolveTrustProxy(ok)),'should accept '+ok);
- for(const bad of ['true','false','*','1','2','yes','all','0.0.0.0/0','::/0','10.0.0.0/7','2000::/3','999.1.1.1','1.2.3.4/33',',','loopback,all']){
+ for(const ok of ['172.18.0.1','172.18.0.0/16','10.0.0.0/8','::1','fc00::/7','2001:db8::1','2001:db8::/32','loopback,linklocal,10.1.2.3'])check(Array.isArray(resolveTrustProxy(ok)),'should accept '+ok);
+ for(const bad of ['true','false','*','1','2','yes','all','0.0.0.0/0','::/0','10.0.0.0/7','2000::/3','999.1.1.1','1.2.3.4/33','::::','1:2:3','1:2:3:4:5:6:7:8:9','2001:db8::/129',',','loopback,,uniquelocal','loopback,all']){
   let refused=false;try{resolveTrustProxy(bad)}catch{refused=true}
   check(refused,'TRUST_PROXY "'+bad+'" must be refused');
  }

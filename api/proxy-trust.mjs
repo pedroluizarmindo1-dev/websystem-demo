@@ -7,22 +7,25 @@
 // Accepted: the keywords loopback, linklocal, uniquelocal and explicit addresses or CIDR ranges, comma separated.
 // Refused (the server does not start): booleans, hop counts, wildcards and very broad ranges, because they would let
 // any client that can reach the port choose its own IP.
+import {isIP} from 'node:net';
+
 const KEYWORDS=new Set(['loopback','linklocal','uniquelocal']);
-const IPV4=/^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\/(\d{1,2}))?$/;
-const IPV6=/^(?=.*:)[0-9a-f:]{2,39}(?:\/(\d{1,3}))?$/i;
 const PRIVATE_PEER=/^(?:::ffff:)?(?:127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|169\.254\.)|^::1$|^f[cd][0-9a-f]{2}:|^fe80:/i;
 
 export function resolveTrustProxy(raw){
  const value=String(raw??'').trim();
  if(!value)return ['loopback'];
- const entries=value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
- if(!entries.length)throw Error('TRUST_PROXY has no entries');
+ const entries=value.split(',').map(s=>s.trim().toLowerCase());
+ if(!entries.length||entries.some(entry=>!entry))throw Error('TRUST_PROXY has an empty or missing entry');
  for(const entry of entries){
   if(KEYWORDS.has(entry))continue;
-  const v4=IPV4.exec(entry),v6=v4?null:IPV6.exec(entry);
-  if(!v4&&!v6)throw Error('TRUST_PROXY: unsupported entry "'+entry.slice(0,40)+'" (use loopback, linklocal, uniquelocal, an IP address or a CIDR range)');
-  const prefix=(v4||v6)[1];
-  if(prefix!==undefined&&(v4?Number(prefix)<8||Number(prefix)>32:Number(prefix)<7||Number(prefix)>128))throw Error('TRUST_PROXY: range "'+entry+'" is invalid or too broad');
+  const [address,prefix,...extra]=entry.split('/');
+  const family=isIP(address);
+  if(!family||extra.length||(prefix!==undefined&&!/^[0-9]{1,3}$/.test(prefix)))throw Error('TRUST_PROXY: unsupported entry "'+entry.slice(0,40)+'" (use loopback, linklocal, uniquelocal, a valid IP address or CIDR range)');
+  if(prefix!==undefined){
+   const bits=Number(prefix),max=family===4?32:128,min=family===4?8:7;
+   if(bits<min||bits>max)throw Error('TRUST_PROXY: range "'+entry+'" is invalid or too broad');
+  }
  }
  return entries;
 }
