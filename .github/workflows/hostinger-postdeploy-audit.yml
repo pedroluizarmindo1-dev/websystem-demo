@@ -1,6 +1,8 @@
 name: WebSystem production post-deploy audit
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '45 12 * * *'
 permissions:
   contents: read
 jobs:
@@ -11,15 +13,20 @@ jobs:
       - name: Verify public routes and access controls
         run: |
           set -euo pipefail
-          for path in / /services /client/ /client/orders /client/support /client/wallet /admin/ /api/health; do
+          for path in / /services /client/ /client/orders /client/support /client/wallet /api/health; do
             code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://unlockertools.tech$path")
             echo "PUBLIC_ROUTE $path $code"
             test "$code" = 200
           done
-          for path in /api/client/wallet /api/admin/wallet/deposits /api/auth/me; do
+          for path in /api/client/wallet /api/admin/wallet/deposits; do
             code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://unlockertools.tech$path")
             echo "PROTECTED_ROUTE $path $code"
             test "$code" = 401
+          done
+          for path in /admin/ /api/auth/me; do
+            code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://unlockertools.tech$path")
+            echo "ADMIN_IP_GATE $path $code"
+            test "$code" = 404 || test "$code" = 503
           done
       - name: Verify public security response headers
         run: |
@@ -54,16 +61,24 @@ jobs:
           set -euo pipefail
           cd /opt/websystem
           docker compose config -q
+          test -x /usr/local/sbin/websystem-backup
+          echo "BACKUP_UTILITY_PRESENT"
           docker compose ps --status running --services | grep -qx websystem
           docker compose exec -T websystem node --input-type=module -e '
           import {DatabaseSync} from "node:sqlite";
           if(process.env.WALLET_REQUESTS_ENABLED==="true")throw Error("Wallet requests enabled");
           console.log("WALLET_DISABLED");
+          if(!process.env.ADMIN_ALLOWED_IPS?.trim())throw Error("ADMIN_ALLOWED_IPS is not configured");
+          console.log("ADMIN_IP_ALLOWLIST_CONFIGURED");
+          if(!process.env.TRUST_PROXY?.trim())throw Error("TRUST_PROXY is not configured");
+          console.log("TRUST_PROXY_CONFIGURED");
           for(const name of ["auth.sqlite","websystem.sqlite"]){
             const db=new DatabaseSync("/app/data/"+name,{readOnly:true});
             try{
               if(db.prepare("PRAGMA integrity_check").get()?.integrity_check!=="ok")throw Error(name+" integrity failed");
               console.log("DATABASE_INTEGRITY_OK",name);
+              const mode=db.prepare("PRAGMA journal_mode").get()?.journal_mode;
+              console.log("SQLITE_JOURNAL_MODE",name,mode);
             }finally{db.close()}
           }
           const health=await fetch("http://127.0.0.1:3100/api/health");
