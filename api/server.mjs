@@ -177,7 +177,7 @@ app.get('/api/orders/:id/status-history',adminOnly,wrap((req,res)=>{
  const id=Number(req.params.id);
  if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({error:'ID inválido'});
  if(!get('SELECT id FROM orders WHERE id=?',id))return res.status(404).json({error:'Ordem não encontrada'});
- res.json(all("SELECT id,action,detail,created_at FROM audit_logs WHERE entity='orders' AND entity_id=? AND action IN ('created','status','reseller_api_request') ORDER BY id ASC LIMIT 500",id).map(e=>({id:e.id,previous_status:null,new_status:e.action==='status'?e.detail:'pendente',origin:e.action,actor:null,created_at:e.created_at})));
+ res.json(all('SELECT id,order_id,previous_status,new_status,origin,actor,created_at FROM order_status_history WHERE order_id=? ORDER BY id ASC LIMIT 500',id));
 }));
 app.get('/api/orders',adminOnly,wrap((req,res)=>res.json(all('SELECT * FROM orders ORDER BY id DESC LIMIT 200'))));
 app.post('/api/orders',adminOnly,wrap((req,res)=>{
@@ -185,7 +185,7 @@ app.post('/api/orders',adminOnly,wrap((req,res)=>{
  db.exec('BEGIN IMMEDIATE');
  try{
   const r=run('INSERT INTO orders(customer_name,customer_contact,device_brand,device_model,service_id,price_brl,anydesk_id,payment_status) VALUES (?,?,?,?,?,?,?,?)',s.customer_name,s.customer_contact||'',s.device_brand||'',s.device_model,s.service_id||null,Number(s.price_brl)||0,s.anydesk_id||'',s.payment_status||'pendente');
-  const id=Number(r.lastInsertRowid);audit('orders',id,'created');db.exec('COMMIT');res.status(201).json({id});
+  const id=Number(r.lastInsertRowid);run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,NULL,?,?,?)',id,'pendente','admin_creation',req.user?.username||null);audit('orders',id,'created');db.exec('COMMIT');res.status(201).json({id});
  }catch(e){db.exec('ROLLBACK');throw e}
 }));
 app.patch('/api/orders/:id',adminOnly,wrap((req,res)=>{
@@ -199,6 +199,7 @@ app.patch('/api/orders/:id',adminOnly,wrap((req,res)=>{
   if(current.status===req.body.status){db.exec('COMMIT');return res.json({ok:true,changed:false})}
   if(!canTransitionOrder(current.status,req.body.status)){db.exec('ROLLBACK');return res.status(409).json({error:'Transição de status não permitida',from:current.status,to:req.body.status})}
   run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,id);
+  run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,?,?,?,?)',id,current.status,req.body.status,'admin_status',req.user?.username||null);
   audit('orders',id,'status',req.body.status);
   db.exec('COMMIT');res.json({ok:true,changed:true});
  }catch(e){db.exec('ROLLBACK');throw e}
