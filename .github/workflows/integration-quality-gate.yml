@@ -42,3 +42,5 @@ jobs:
         run: node scripts/qa-smoke.mjs
       - name: Pricing
         run: node scripts/qa-pricing.mjs
+      - name: Client IP behind a reverse proxy
+        run: node scripts/qa-proxy-trust-isolated.mjs

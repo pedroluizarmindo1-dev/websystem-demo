@@ -5,7 +5,8 @@ const hash=s=>createHash('sha256').update(s).digest('hex');
 const safe=(a,b)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
 const error=(res,code,message)=>res.status(code).json({error:message});
 const validIp=(s)=>/^(?:\d{1,3}\.){3}\d{1,3}$/.test(s)||s==='::1'||/^[a-f\d:]+$/i.test(s);
-const clientIp=req=>(req.socket.remoteAddress||'').replace(/^::ffff:/,'');
+// req.ip honours TRUST_PROXY: behind our reverse proxy it is the reseller's address, not the proxy's.
+const clientIp=req=>String(req.ip||req.socket.remoteAddress||'').replace(/^::ffff:/,'');
 const priceFor=(service,rate,tier,settings)=>{const base=priceService(service,rate).selling_brl;return Math.round(Math.max(0,base*(1-(Number(settings[tier+'_discount_percent'])||0)/100))*100)/100};
 export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
  const all=(s,...p)=>db.prepare(s).all(...p),get=(s,...p)=>db.prepare(s).get(...p),run=(s,...p)=>db.prepare(s).run(...p);
