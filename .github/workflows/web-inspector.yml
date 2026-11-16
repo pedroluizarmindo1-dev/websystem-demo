@@ -13,16 +13,21 @@ jobs:
         with:
           node-version: '24'
       - name: Install inspector dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Check build
         run: npm run build
       - name: Inspect published web app
         env:
           CHROME_PATH: /usr/bin/google-chrome
-          WEB_INSPECT_URL: https://websystem-unlocker-demo.onrender.com
+          WEB_INSPECT_URL: https://unlockertools.tech
         run: |
           if [ ! -x "$CHROME_PATH" ]; then
             CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
             export CHROME_PATH
           fi
           npm run inspect:web
+      - name: Inspect public pages on desktop and mobile
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          PUBLIC_BASE_URL: https://unlockertools.tech
+        run: node scripts/qa-public-pages.mjs

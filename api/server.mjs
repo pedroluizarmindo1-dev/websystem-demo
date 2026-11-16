@@ -40,6 +40,8 @@ app.use('/api',(req,res,next)=>{
 });
 const root=resolve(import.meta.dirname,'..');mkdirSync(resolve(root,'data'),{recursive:true});
 const db=new DatabaseSync(resolve(root,'data','websystem.sqlite'));
+db.exec('PRAGMA busy_timeout=15000');
+db.exec('PRAGMA journal_mode=WAL');
 db.exec(readFileSync(resolve(root,'api/schema.sql'),'utf8'));
 const all=(sql,...params)=>db.prepare(sql).all(...params),get=(sql,...params)=>db.prepare(sql).get(...params);
 const run=(sql,...params)=>db.prepare(sql).run(...params);
