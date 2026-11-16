@@ -18,12 +18,12 @@ jobs:
             echo "PUBLIC_ROUTE $path $code"
             test "$code" = 200
           done
-          for path in /api/client/wallet /api/admin/wallet/deposits; do
+          for path in /api/client/wallet; do
             code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://unlockertools.tech$path")
             echo "PROTECTED_ROUTE $path $code"
             test "$code" = 401
           done
-          for path in /admin/ /api/auth/me; do
+          for path in /admin/ /api/auth/me /api/admin/wallet/deposits; do
             code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://unlockertools.tech$path")
             echo "ADMIN_IP_GATE $path $code"
             test "$code" = 404 || test "$code" = 503
