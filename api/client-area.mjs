@@ -44,6 +44,8 @@ export function mountClientArea(app,db,{adminGuard}){
  // Additive migration: existing users retain their IDs and credentials.
  const userCols=db.prepare('PRAGMA table_info(client_users)').all().map(c=>c.name);
  for(const [col,type] of [['country_code','TEXT'],['phone_e164','TEXT'],['preferred_locale','TEXT']])if(!userCols.includes(col))db.exec(`ALTER TABLE client_users ADD COLUMN ${col} ${type}`);
+ // Additive migration: messages carrying a short-lived token expire with it (the body is then erased, never resent).
+ if(!db.prepare('PRAGMA table_info(mail_outbox)').all().some(c=>c.name==='expires_at'))db.exec('ALTER TABLE mail_outbox ADD COLUMN expires_at INTEGER');
  const event=(id,action,outcome,req)=>{try{db.prepare('INSERT INTO client_security_events(client_id,action,outcome,ip) VALUES (?,?,?,?)').run(id||null,action,outcome,String(req.ip||'unknown').slice(0,90))}catch(e){console.error('Client audit write failed:',e.message)}};
  const q=(sql,...args)=>db.prepare(sql).get(...args),all=(sql,...args)=>db.prepare(sql).all(...args),run=(sql,...args)=>db.prepare(sql).run(...args);
  const router=Router();
@@ -55,9 +57,34 @@ export function mountClientArea(app,db,{adminGuard}){
  const flowLimits=new Map();
  const limited=(name,max,windowMs)=>(req,res,next)=>{const now=Date.now(),key=name+':'+req.ip;let x=flowLimits.get(key);if(!x||x.until<now)x={n:0,until:now+windowMs};flowLimits.set(key,x);if(x.n++>=max)return fail(res,429,'Aguarde antes de tentar novamente');if(flowLimits.size>5000)for(const [k,v] of flowLimits)if(v.until<now)flowLimits.delete(k);next()};
  const mail=(to,subject,body)=>hostingerMailReady()?sendHostingerMail(to,subject,body):transport().sendMail({from:process.env.MAIL_FROM,to,subject,text:body});
- // Fire-and-forget delivery for flows whose answer must not depend on whether the address has an account:
- // awaiting the mail server only when an account exists would reveal it through the response time.
- const mailLater=(to,subject,body,label)=>{Promise.resolve().then(()=>mail(to,subject,body)).catch(()=>console.error(label+' failed'))};
+ // Durable outbox. Flows whose answer must not depend on whether the address has an account (password recovery,
+ // verification resend) store the message and answer at once; delivery happens in the background with retries, so a
+ // provider failure or a restart does not lose the link. Sent and expired messages have their body erased.
+ const MAIL_MAX_ATTEMPTS=5,MAIL_BATCH=10,retryMs=Math.max(200,Number(process.env.MAIL_RETRY_INTERVAL_MS)||60000);
+ let sending=false,drainAgain=false;
+ async function drainOutbox(){
+  if(sending){drainAgain=true;return null}
+  sending=true;let sent=0,failed=0;
+  try{
+   run("UPDATE mail_outbox SET status='expired',body='' WHERE status='pending' AND expires_at IS NOT NULL AND expires_at<=?",Date.now());
+   const rows=all("SELECT * FROM mail_outbox WHERE status='pending' AND attempts<? AND (expires_at IS NULL OR expires_at>?) ORDER BY id LIMIT ?",MAIL_MAX_ATTEMPTS,Date.now(),MAIL_BATCH);
+   for(const m of rows){
+    if(!run("UPDATE mail_outbox SET status='sending',attempts=attempts+1 WHERE id=? AND status='pending'",m.id).changes)continue;
+    try{await mail(m.recipient,m.subject,m.body);run("UPDATE mail_outbox SET status='sent',sent_at=CURRENT_TIMESTAMP,last_error=NULL,body='' WHERE id=?",m.id);sent++}
+    catch(e){run("UPDATE mail_outbox SET status=CASE WHEN attempts>=? THEN 'failed' ELSE 'pending' END,last_error=? WHERE id=?",MAIL_MAX_ATTEMPTS,String(e.message).slice(0,300),m.id);failed++}
+   }
+   if(rows.length===MAIL_BATCH&&!failed)drainAgain=true;
+  }finally{sending=false}
+  if(drainAgain){drainAgain=false;setImmediate(kickOutbox)}
+  return {sent,failed};
+ }
+ // A transient database error (e.g. 'database is locked' while a backup reads the file) retries in a few seconds
+ // instead of waiting for the next periodic run.
+ function kickOutbox(){if(mailReady())drainOutbox().catch(e=>{console.error('Mail outbox delivery failed:',e.message);setTimeout(kickOutbox,Math.min(retryMs,2000)).unref()})}
+ const enqueueMail=(to,subject,body,ttlMs=null)=>{run('INSERT INTO mail_outbox(recipient,subject,body,expires_at) VALUES (?,?,?,?)',to,subject,body,ttlMs?Date.now()+ttlMs:null);setImmediate(kickOutbox)};
+ // A process stopped mid-delivery leaves rows in 'sending': hand them back to the queue, then retry periodically.
+ run("UPDATE mail_outbox SET status='pending' WHERE status='sending'");
+ setInterval(kickOutbox,retryMs).unref();setImmediate(kickOutbox);
  const makeToken=(id,purpose)=>{const token=randomBytes(32).toString('hex');run('DELETE FROM client_auth_tokens WHERE client_id=? AND purpose=?',id,purpose);run('INSERT INTO client_auth_tokens(token_hash,client_id,purpose,expires_at) VALUES (?,?,?,?)',digest(token),id,purpose,Date.now()+30*60000);return token};
  router.post('/register',limited('register',5,3600000),async(req,res)=>{
   if(!mailReady())return fail(res,503,'Cadastro indisponível temporariamente');
@@ -88,7 +115,7 @@ export function mountClientArea(app,db,{adminGuard}){
   const email=String(req.body?.email||'').trim().toLowerCase();
   if(!validEmail(email))return fail(res,400,'Informe um e-mail válido');
   const u=q('SELECT id FROM client_users WHERE email=? AND enabled=0',email);
-  if(u){const token=makeToken(u.id,'verify');mailLater(email,'Confirme sua conta UNLOCKER Tools',`Para confirmar seu cadastro, acesse: ${process.env.APP_ORIGIN}/client/?view=verify&token=${token}\nEste link expira em 30 minutos.`,'Verification resend')}
+  if(u){const token=makeToken(u.id,'verify');enqueueMail(email,'Confirme sua conta UNLOCKER Tools',`Para confirmar seu cadastro, acesse: ${process.env.APP_ORIGIN}/client/?view=verify&token=${token}\nEste link expira em 30 minutos.`,30*60000)}
   res.json({ok:true,message:'Se houver um cadastro pendente, enviaremos um novo link. Confira também a pasta de spam.'});
  });
  router.post('/verify-email',limited('verify',12,900000),(req,res)=>{
@@ -102,7 +129,7 @@ export function mountClientArea(app,db,{adminGuard}){
   if(!mailReady())return fail(res,503,'Recuperação indisponível temporariamente');
   const email=String(req.body?.email||'').trim().toLowerCase();if(!validEmail(email))return fail(res,400,'E-mail inválido');
   const u=q('SELECT id FROM client_users WHERE email=? AND enabled=1',email);
-  if(u){const token=makeToken(u.id,'reset');mailLater(email,'Recuperação de senha UNLOCKER Tools',`Para definir uma nova senha, acesse: ${process.env.APP_ORIGIN}/client/?view=reset&token=${token}\nEste link expira em 30 minutos.`,'Password reset email')}
+  if(u){const token=makeToken(u.id,'reset');enqueueMail(email,'Recuperação de senha UNLOCKER Tools',`Para definir uma nova senha, acesse: ${process.env.APP_ORIGIN}/client/?view=reset&token=${token}\nEste link expira em 30 minutos.`,30*60000)}
   res.json({ok:true,message:'Se existir uma conta, enviaremos instruções ao e-mail cadastrado'});
  });
  router.post('/reset-password',limited('reset',8,900000),(req,res)=>{
@@ -200,21 +227,11 @@ export function mountClientArea(app,db,{adminGuard}){
   event(null,'admin_mail_queue','success',req);res.status(201).json({id:Number(r.lastInsertRowid),status:'pending'});
  });
  admin.get('/mail/status',(req,res)=>res.json({configured:!!mailReady(),provider:hostingerMailReady()?'hostinger-api':smtpReady()?'smtp':'none',counts:all('SELECT status,COUNT(*) AS count FROM mail_outbox GROUP BY status')}));
- let sending=false;
  admin.post('/mail/send-pending',async(req,res)=>{
-  if(sending)return fail(res,409,'Envio em andamento');
-  sending=true;
-  try{
   if(!mailReady())return fail(res,503,'E-mail não configurado');
-  const rows=all("SELECT * FROM mail_outbox WHERE status='pending' AND attempts<3 ORDER BY id LIMIT 10");
-  let sent=0,failed=0;
-  for(const m of rows){
-   run("UPDATE mail_outbox SET status='sending',attempts=attempts+1 WHERE id=? AND status='pending'",m.id);
-   try{await mail(m.recipient,m.subject,m.body);run("UPDATE mail_outbox SET status='sent',sent_at=CURRENT_TIMESTAMP,last_error=NULL WHERE id=?",m.id);sent++}
-   catch(e){run("UPDATE mail_outbox SET status='pending',last_error=? WHERE id=?",String(e.message).slice(0,300),m.id);failed++}
-  }
-  res.json({sent,failed});
-  }finally{sending=false}
+  const result=await drainOutbox();
+  if(!result)return fail(res,409,'Envio em andamento');
+  res.json(result);
  });
  app.use('/api/admin/client-area',admin);
 }
