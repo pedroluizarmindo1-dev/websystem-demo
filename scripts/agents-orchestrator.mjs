@@ -30,6 +30,7 @@ try{
   for(const file of ['api/server.mjs','api/wallet.mjs','api/client-area.mjs'])attempt('Executor','syntax '+file,()=>run('node',['--check',file]));
   attempt('Executor','frontend production build',()=>run('npm',['run','build']),{retry:true});
   // 4. QA: start ephemeral local API and validate critical endpoints without credentials.
+  attempt('QA','isolated customer sign-up and mail flows (no account enumeration)',()=>run('node',['scripts/qa-client-register-isolated.mjs'],90000));
   attempt('QA','route and auth smoke tests',()=>{
     const child=spawnSync('node',['scripts/qa-smoke.mjs'],{cwd:root,encoding:'utf8',timeout:45000,env:{...process.env,WALLET_REQUESTS_ENABLED:'false'}});
     if(child.error||child.status!==0)throw Error((child.stderr||child.stdout||child.error?.message||'smoke failure').slice(-1000));
