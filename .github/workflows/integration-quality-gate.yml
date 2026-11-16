@@ -30,6 +30,8 @@ jobs:
         run: node scripts/qa-order-history-isolated.mjs
       - name: Client isolation
         run: node scripts/qa-client-isolated.mjs
+      - name: Customer sign-up and mail flows
+        run: node scripts/qa-client-register-isolated.mjs
       - name: RBAC
         run: node scripts/qa-rbac-isolated.mjs
       - name: Security
@@ -42,3 +44,5 @@ jobs:
         run: node scripts/qa-smoke.mjs
       - name: Pricing
         run: node scripts/qa-pricing.mjs
+      - name: Client IP behind a reverse proxy
+        run: node scripts/qa-proxy-trust-isolated.mjs
