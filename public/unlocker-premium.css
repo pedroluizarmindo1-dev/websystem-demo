@@ -1,0 +1,99 @@
+/* UNLOCKER TOOLS — original commercial identity, responsive across all client surfaces */
+:root{--ut-bg:#080b09;--ut-surface:#111813;--ut-elev:#162019;--ut-border:#2b4031;--ut-text:#f0f7f1;--ut-muted:#a8b9ac;--ut-accent:#25c46a;--ut-blue:#22b961}
+body.ut-premium{background:radial-gradient(ellipse 80% 35% at 85% 0%,#153523 0%,transparent 72%),var(--ut-bg);color:var(--ut-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+.ut-premium .site-header{background:#0a110de8;border-bottom:1px solid var(--ut-border);position:sticky;top:0;z-index:30;backdrop-filter:blur(16px)}
+.ut-premium .brand{font-weight:850;letter-spacing:.04em}.ut-premium .brand small{color:var(--ut-accent)}
+.ut-premium .nav a{color:#c6dacc}.ut-premium .nav a:hover{color:#fff}
+.ut-premium .btn{border-radius:10px;border-color:#34513e;color:var(--ut-text)}.ut-premium .btn.primary{background:var(--ut-accent);border-color:var(--ut-accent);color:#06130a}.ut-premium .btn.primary:hover{background:#42e68a}
+.ut-premium .hero{margin-top:28px;min-height:440px;display:flex;align-items:center;border-color:#2a4733;background:radial-gradient(circle at 82% 35%,#1d5132 0%,transparent 34%),linear-gradient(135deg,#122a1c,#0b120d 68%);box-shadow:0 22px 80px #0005}
+.ut-premium .hero:after{width:330px;height:330px;border:1px solid #4a946255;right:5%;top:8%;box-shadow:0 0 0 34px #2cbb5a18,0 0 0 75px #2cbb5a0d}
+.ut-premium .hero>*{position:relative;z-index:1}.ut-premium .eyebrow{color:var(--ut-accent)}.ut-premium h1{font-weight:850;max-width:760px}.ut-premium .hero p{color:#b5cbb9}
+.ut-premium .section{padding-top:66px}.ut-premium .section-head p,.ut-premium p{color:var(--ut-muted)}
+.ut-premium .tile,.ut-premium .feature,.ut-premium .search-box{background:linear-gradient(150deg,#14241a,#0f1711);border:1px solid var(--ut-border);transition:transform .18s,border-color .18s,background .18s}
+.ut-premium .tile:hover{transform:translateY(-3px);border-color:var(--ut-accent)}.ut-premium .tile .symbol{color:var(--ut-accent);background:#25c46a14;border-color:#317c4b}
+.ut-premium .feature{border-top:2px solid var(--ut-accent)}.ut-premium .search-box input{background:#0a120d;border-color:#35533d}.ut-premium .site-footer{border-color:var(--ut-border)}
+.ut-kicker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}.ut-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:30px;border:1px solid #385a42;color:#c6dacc;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}.ut-chip::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--ut-accent)}
+.ut-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.ut-step{background:#101d14;border:1px solid var(--ut-border);border-radius:16px;padding:25px}.ut-step-number{font-size:12px;letter-spacing:.15em;color:var(--ut-accent);font-weight:800}.ut-step h3{font-size:18px;margin:14px 0 6px}.ut-step p{font-size:14px;margin:0}
+body.ut-client{background:radial-gradient(ellipse 75% 30% at 70% 0%,#153b24 0%,transparent 70%),#090d0a;color:var(--ut-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+.ut-client main{max-width:1120px;padding:32px 24px}.ut-client main>header{padding:10px 0 24px;border-bottom:1px solid var(--ut-border)}.ut-client main>header strong{display:inline-flex;align-items:center;gap:8px;letter-spacing:.025em}.ut-client h1{font-size:clamp(31px,4.4vw,46px);letter-spacing:-.035em;margin:34px 0 7px}.ut-client .muted{color:var(--ut-muted)}.ut-client section{background:linear-gradient(145deg,#14271a,#101a12);border-color:var(--ut-border);box-shadow:0 10px 35px #0002}.ut-client #loginBox,.ut-client #accountBox{max-width:510px;padding:30px;margin:26px 0}.ut-client #loginBox h2,.ut-client #accountBox h2{font-size:25px;letter-spacing:-.02em}.ut-client input,.ut-client textarea{background:#0b150e;border-color:#3b5b44;color:#f0f7f1}.ut-client button{background:var(--ut-accent);color:#07130b}.ut-client a{color:#67e99c}.ut-client #dashboard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.ut-client #dashboard[hidden]{display:none}.ut-client #dashboard>section{margin:0}.ut-client #dashboard>section:first-child{grid-column:1/-1}.ut-client article{border-color:var(--ut-border)}
+.ut-client .ut-account-intro{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:20px 24px;border:1px solid var(--ut-border);border-radius:15px;background:#13241a;margin-top:24px}.ut-client .ut-account-intro span{font-size:12px;color:var(--ut-accent);letter-spacing:.12em;font-weight:800;text-transform:uppercase}.ut-client .ut-account-intro p{margin:5px 0 0;font-size:13px}
+@media(max-width:850px){.ut-steps{grid-template-columns:1fr}.ut-client #dashboard{grid-template-columns:1fr}}
+@media(max-width:540px){.ut-premium .hero{min-height:390px}.ut-premium .hero:after{right:-200px;opacity:.4}.ut-premium .nav{justify-content:flex-start}.ut-client main{padding:18px 16px}.ut-client #loginBox,.ut-client #accountBox{padding:22px}.ut-client .ut-account-intro{padding:18px}}
+
+/* Consistent black/green identity across secondary routes */
+body.ut-secondary{background:radial-gradient(ellipse at 75% 0%,#12351f 0%,transparent 55%),#080b09;color:var(--ut-text);font-family:Inter,system-ui,-apple-system,sans-serif;min-height:100dvh}
+.ut-secondary section{background:#111813;border-color:var(--ut-border)}
+.ut-secondary a{color:#68eaa0}.ut-secondary .btn,.ut-secondary button{background:var(--ut-accent);color:#06130a;border-color:var(--ut-accent)}
+.ut-secondary input,.ut-secondary select,.ut-secondary textarea{max-width:100%;min-width:0;background:#0b150e;border-color:#35533d;color:var(--ut-text)}
+.ut-secondary main{width:100%;max-width:1000px}.ut-secondary header{flex-wrap:wrap}
+.ut-secondary #balance{color:#6eeaa2}
+.ut-secondary .mark{color:#62e49a;border-color:#2c9b59;background:#102b1b}
+.ut-secondary .brand{color:#73e9a5}
+.ut-secondary .card{background:#101b13;border-color:#31533b}
+.ut-secondary .release{color:#71e9a3;border-color:#2c9b59}
+.ut-secondary .status{background:#163b23;border-color:#2c9b59;color:#b4f4cb}
+.ut-secondary .note{color:#a3bbaa}
+@media(max-width:420px){.ut-secondary main{padding-inline:16px}.ut-secondary section{padding:18px}.ut-secondary input,.ut-secondary select,.ut-secondary button{max-width:100%}}
+
+/* Final UX stabilization: preserve all content at narrow widths */
+.ut-premium .hero{display:block;overflow:visible;isolation:isolate}
+.ut-premium .hero:after{z-index:-1;overflow:hidden}
+.ut-premium .hero h1,.ut-premium .hero p,.ut-premium .hero .actions{max-width:100%;overflow-wrap:break-word}
+.ut-premium .header-inner{gap:14px}
+.ut-premium .nav{gap:14px}
+.ut-secondary{overflow-x:clip}
+.ut-secondary main,.ut-secondary section,.ut-secondary form,.ut-secondary label{min-width:0;max-width:100%}
+.ut-secondary select,.ut-secondary input,.ut-secondary button{box-sizing:border-box;max-width:100%}
+.ut-secondary select{width:100%}
+.ut-secondary .brand{display:inline-flex;align-items:center;gap:12px}
+.ut-secondary .brand img{flex-shrink:0}
+.ut-secondary .brand .mark{display:none}
+@media(max-width:420px){.ut-premium .hero{padding:24px 20px}.ut-premium .hero h1{font-size:clamp(30px,9vw,40px)}.ut-premium .actions{display:grid;grid-template-columns:minmax(0,1fr)}.ut-premium .actions .btn{width:100%}.ut-premium .header-inner{padding-block:12px}.ut-premium .nav{width:100%;justify-content:space-between;gap:8px}.ut-premium .nav a{font-size:12px}.ut-secondary input,.ut-secondary select{width:100%}}
+/* Clip decorative rings only; hero text now uses a normal block layout. */
+.ut-premium .hero{overflow:clip}
+.ut-premium .hero:after{pointer-events:none}
+@media(max-width:540px){.ut-premium .hero:after{display:none}}
+
+/* Storefront phase 1: rounded cyan storefront, accessible reduced-motion support */
+:root{--ut-accent:#2dd4bf}
+.ut-catalog-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:24px 0}
+.ut-catalog-controls label{font-size:13px;color:#a6c5be}
+.ut-catalog-controls input,.ut-catalog-controls select{width:100%;min-width:0;padding:14px 16px;border:1px solid #31514a;border-radius:16px;background:#111b19;color:#f2faf8;font:inherit}
+.ut-catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:16px;margin:22px 0}
+.ut-catalog-card{background:#111a18;border:1px solid #29463f;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:12px;transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease;min-width:0}
+.ut-catalog-card:hover{transform:translateY(-4px);border-color:#2dd4bf;box-shadow:0 12px 35px #2dd4bf16}
+.ut-catalog-card h3{font-size:18px;line-height:1.35;margin:0;overflow-wrap:anywhere}
+.ut-catalog-card p{color:#a8c4bb;margin:0;overflow-wrap:anywhere}.ut-catalog-card small{color:#b7d4ca}
+.ut-catalog-category{color:#2dd4bf;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.ut-catalog-login{margin-top:auto;color:#2dd4bf;font-weight:700;text-decoration:underline;text-underline-offset:4px}
+@media(max-width:520px){.ut-catalog-controls{grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.ut-catalog-card{transition:none}.ut-catalog-card:hover{transform:none}}
+
+/* Phase 2: cyan identity, account controls, rounded fields and accessible motion */
+:root{--ut-accent:#2dd4bf;--ut-border:#294942;--ut-blue:#2dd4bf}
+.ut-premium,.ut-client,.ut-secondary{accent-color:#2dd4bf}
+.ut-premium .btn.primary,.ut-client button,.ut-secondary button{border-radius:15px}
+.ut-client section,.ut-client input,.ut-client select,.ut-client textarea,.ut-client button{border-radius:18px}
+.ut-client #accountFields{display:grid;gap:12px}.ut-client #accountFields label{display:grid;gap:7px}
+.ut-client #accountFields input,.ut-client #accountFields select{width:100%;padding:13px;border:1px solid #31534d;background:#101b19;color:#f1fafa}
+.ut-language-label{display:flex;align-items:center;gap:8px;font-size:12px;color:#b4d1ca}
+.ut-language{border:1px solid #365d56;border-radius:13px;background:#10201c;color:#d5f7f0;padding:9px;max-width:135px}
+.ut-user-link{display:grid;place-items:center;width:43px;height:43px;flex-shrink:0;border:1px solid #365d56;border-radius:15px;color:#2dd4bf;background:#10201c}
+.ut-user-link:hover{border-color:#2dd4bf;box-shadow:0 0 18px #2dd4bf25}
+@media(min-width:720px){.ut-reveal{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}.ut-reveal.ut-visible{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.ut-reveal{opacity:1!important;transform:none!important;transition:none!important}}
+@media(max-width:650px){.ut-premium .header-inner{flex-wrap:wrap}.ut-language-label{font-size:11px}.ut-language{max-width:110px}.ut-user-link{width:38px;height:38px}}
+
+/* Trust, onboarding and disclosure sections */
+.ut-trust-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px;margin:22px 0}
+.ut-faq{display:grid;gap:12px}.ut-faq details{background:#101b19;border:1px solid #2c5048;border-radius:18px;padding:18px 22px}.ut-faq summary{cursor:pointer;font-weight:700;color:#e3f9f5}.ut-faq details p{margin:14px 0 0;color:#b4cfc8;line-height:1.65}.ut-faq summary:focus-visible{outline:2px solid #2dd4bf;outline-offset:5px}.ut-status-row{display:flex;align-items:center;flex-wrap:wrap;gap:14px;border:1px solid #38504b;border-radius:20px;padding:22px;background:#121c1a}.ut-status-row span:last-child,.ut-note{color:#b3c8c2}.ut-status-dot{width:10px;height:10px;border-radius:50%;background:#b8b8b8}.site-footer a{color:#9be8db;text-decoration:underline;text-underline-offset:3px}
+
+/* Commercial WhatsApp contact — user-provided number */
+.ut-whatsapp{position:fixed;right:20px;bottom:22px;z-index:70;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:#25d366;color:#082317!important;font-weight:800;font-size:14px;box-shadow:0 9px 35px #0008;border:1px solid #8bf1b0;transition:transform .2s ease,box-shadow .2s ease;text-decoration:none!important}
+.ut-whatsapp:hover{transform:translateY(-3px);box-shadow:0 12px 42px #25d36645}.ut-whatsapp:focus-visible{outline:3px solid #fff;outline-offset:4px}
+@media(max-width:520px){.ut-whatsapp{right:14px;bottom:16px;padding:12px;border-radius:50%}.ut-whatsapp span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}}
+@media(prefers-reduced-motion:reduce){.ut-whatsapp{transition:none}.ut-whatsapp:hover{transform:none}}
+
+.ut-catalog-price{display:block;color:#2DD4BF;font-size:1.12rem;font-weight:800;margin:10px 0 4px;font-variant-numeric:tabular-nums}
+
+.ut-catalog-more{display:block;margin:24px auto;padding:12px 24px;border-radius:12px;border:1px solid #2DD4BF;background:transparent;color:#2DD4BF;font-weight:700;cursor:pointer}.ut-catalog-more:hover{background:#2DD4BF20}.ut-catalog-more[hidden]{display:none}

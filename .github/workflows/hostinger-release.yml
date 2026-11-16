@@ -1,0 +1,102 @@
+name: WebSystem — QA and guarded Hostinger deployment
+on:
+  push:
+    branches: [release/client-build-2026-11-10]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy to Hostinger after QA and verified backups?"
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: websystem-hostinger-production
+  cancel-in-progress: false
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --no-audit --no-fund
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Six-agent preflight and route smoke tests
+        run: node scripts/agents-orchestrator.mjs
+      - name: Validate deploy script syntax and rollback rehearsal
+        run: |
+          bash -n scripts/deploy-hostinger.sh
+          bash scripts/rollback-rehearsal.sh
+          node scripts/qa-production-release-gates.mjs
+          node scripts/qa-supplier-response.mjs
+          node scripts/qa-order-transitions.mjs
+          node scripts/qa-dhru-idempotency.mjs
+      - name: Save QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: websystem-qa-report
+          path: reports/agents-latest.json
+          if-no-files-found: warn
+  deploy:
+    needs: quality
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy == true
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require deploy secrets and pinned SSH identity
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for v in VPS_HOST VPS_USER VPS_SSH_KEY VPS_SSH_KNOWN_HOSTS; do
+            test -n "${!v}" || { echo "::error::Missing secret: $v"; exit 1; }
+          done
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Deploy using verified backup and guarded remote script
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          printf '{"commit":"%s","version":"3.0.0-rc1"}\n' "$GITHUB_SHA" > release-manifest.json
+          tar --exclude=.git --exclude=node_modules --exclude=data --exclude=backups --exclude=reports --exclude=dist --exclude=.env --exclude=.env.production -czf /tmp/websystem-release.tar.gz .
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes /tmp/websystem-release.tar.gz "$VPS_USER@$VPS_HOST:/tmp/websystem-release.tar.gz"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes scripts/deploy-hostinger.sh "$VPS_USER@$VPS_HOST:/tmp/websystem-deploy-verified.sh"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash /tmp/websystem-deploy-verified.sh'
+      - name: Public HTTPS smoke test
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const expected=process.env.GITHUB_SHA;
+          let response;
+          for(let i=0;i<6;i++){
+            try{
+              response=await fetch('https://unlockertools.tech/api/health',{signal:AbortSignal.timeout(15000),cache:'no-store'});
+              if(response.ok){
+                const data=await response.json();
+                if(data.ok===true && data.commit===expected && data.version==='3.0.0-rc1'){
+                  console.log('PUBLIC_RELEASE_SHA_VERIFIED',expected);
+                  process.exit(0);
+                }
+                console.error('PUBLIC_RELEASE_MISMATCH',{status:response.status,version:data.version,commit:data.commit,expected});
+              }
+            }catch(e){console.error('PUBLIC_RELEASE_CHECK_ERROR',e.message)}
+            await new Promise(resolve=>setTimeout(resolve,3000));
+          }
+          process.exit(1);
+          NODE
