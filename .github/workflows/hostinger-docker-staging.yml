@@ -21,6 +21,8 @@ jobs:
           npm audit --omit=dev --audit-level=high
           node scripts/qa-rbac-isolated.mjs
           node scripts/qa-client-isolated.mjs
+      - name: Generate release manifest for the image (same format as the deploy job)
+        run: printf '{"commit":"%s","version":"3.0.0-rc1"}\n' "$GITHUB_SHA" > release-manifest.json
       - name: Build production container
         run: docker build -t websystem:release .
       - name: Start isolated staging container (payments disabled)
@@ -38,6 +40,7 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/auth/me)" = 503
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/client/)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/orders)" = 401
+          curl -fsS http://127.0.0.1:3100/api/health | grep -q "\"commit\":\"$GITHUB_SHA\""
           docker exec websystem-staging node -e "if(process.env.WALLET_REQUESTS_ENABLED==='true')process.exit(1)"
       - name: Container logs on failure
         if: failure()
