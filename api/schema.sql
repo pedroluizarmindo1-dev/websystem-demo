@@ -18,3 +18,26 @@ CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 INSERT OR IGNORE INTO campaigns(id,title,body,link) VALUES (1,'Central de serviços GSM','Explore serviços, ferramentas e anúncios atualizados. Consulte disponibilidade antes de solicitar.','https://t.me/PriceNotification');
 
 CREATE TABLE IF NOT EXISTS order_public_links(order_id INTEGER PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+
+-- Append-only status transitions. Existing orders retain their original audit trail.
+CREATE TABLE IF NOT EXISTS order_status_history (
+ id INTEGER PRIMARY KEY,
+ order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+ previous_status TEXT,
+ new_status TEXT NOT NULL,
+ origin TEXT NOT NULL,
+ actor TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON order_status_history(order_id,id);
+
+-- Request replay protection for DHRU-style API; scoped to the reseller key.
+CREATE TABLE IF NOT EXISTS reseller_order_requests(
+ reseller_key_id INTEGER NOT NULL REFERENCES reseller_keys(id),
+ request_key_hash TEXT NOT NULL,
+ request_fingerprint TEXT NOT NULL,
+ order_id INTEGER NOT NULL REFERENCES orders(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(reseller_key_id,request_key_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_reseller_order_requests_order ON reseller_order_requests(order_id);

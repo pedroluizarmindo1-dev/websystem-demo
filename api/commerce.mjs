@@ -1,21 +1,23 @@
+import {priceService} from './pricing.mjs';
 import {createHash,randomBytes,timingSafeEqual} from 'node:crypto';
 import {Router} from 'express';
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const safe=(a,b)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
 const error=(res,code,message)=>res.status(code).json({error:message});
 const validIp=(s)=>/^(?:\d{1,3}\.){3}\d{1,3}$/.test(s)||s==='::1'||/^[a-f\d:]+$/i.test(s);
-const clientIp=req=>(req.socket.remoteAddress||'').replace(/^::ffff:/,'');
-const priceFor=(base,tier,settings)=>Math.round(Math.max(0,base*(1+(Number(settings.retail_markup_percent)||0)/100)*(1-(Number(settings[tier+'_discount_percent'])||0)/100))*100)/100;
+// req.ip honours TRUST_PROXY: behind our reverse proxy it is the reseller's address, not the proxy's.
+const clientIp=req=>String(req.ip||req.socket.remoteAddress||'').replace(/^::ffff:/,'');
+const priceFor=(service,rate,tier,settings)=>{const base=priceService(service,rate).selling_brl;return Math.round(Math.max(0,base*(1-(Number(settings[tier+'_discount_percent'])||0)/100))*100)/100};
 export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
  const all=(s,...p)=>db.prepare(s).all(...p),get=(s,...p)=>db.prepare(s).get(...p),run=(s,...p)=>db.prepare(s).run(...p);
- const protect=(req,res,next)=>sessionGuard(req,res,next);
+ const protect=(req,res,next)=>sessionGuard(req,res,()=>req.user?.role==='admin'?next():error(res,403,'Acesso restrito'));
  const wrap=fn=>(req,res)=>{try{fn(req,res)}catch(e){error(res,400,e.message)}};
  const fx=()=>get('SELECT rate FROM exchange_rates ORDER BY id DESC LIMIT 1')?.rate||0;
  const wallet=()=>{const entries=all('SELECT * FROM wallet_entries ORDER BY id DESC LIMIT 300');const balance=all("SELECT kind,amount_brl FROM wallet_entries WHERE status='approved'").reduce((n,e)=>n+(e.kind==='credit'||e.kind==='refund'?e.amount_brl:-e.amount_brl),0);return {balance_brl:Math.round(balance*100)/100,entries}};
  // Compatibility subset of DHRU-style API: action + key; intentionally no supplier fulfillment.
  const router=Router();
  const apiAuth=(req,res,next)=>{
-  const token=String(req.headers['x-api-key']||req.body?.key||req.query.key||'');
+  const token=String(req.headers['x-api-key']||req.body?.key||'');
   if(token.length<32||token.length>256)return error(res,401,'Chave API necessária');
   const digest=hash(token);const key=get('SELECT * FROM reseller_keys WHERE token_hash=? AND enabled=1',digest);
   if(!key||!safe(key.token_hash,digest))return error(res,401,'Chave inválida');
@@ -27,18 +29,39 @@ export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
   const action=String(req.body?.action||req.query.action||'').toLowerCase();
   const tier=req.reseller.tier,rate=fx(),settings=config();
   if(action==='accountinfo'||action==='balance')return res.json({SUCCESS:[{AccountName:req.reseller.label,Tier:tier,Currency:'BRL',Balance:wallet().balance_brl}]});
-  if(action==='imeiservicelist'||action==='servicelist')return res.json({SUCCESS:all('SELECT id,name,category,price_usd,eta,available FROM services ORDER BY id DESC LIMIT 5000').map(s=>({SERVICEID:s.id,SERVICENAME:s.name,CATEGORY:s.category,CREDIT:rate?priceFor(quote(s.price_usd,rate,settings.margin_percent,settings.spread_brl),tier,settings):null,TIME:s.eta||'Consultar',AVAILABLE:!!s.available}))});
+  if(action==='imeiservicelist'||action==='servicelist')return res.json({SUCCESS:all('SELECT id,name,category,price_usd,eta,available FROM services ORDER BY id DESC LIMIT 5000').map(s=>({SERVICEID:s.id,SERVICENAME:s.name,CATEGORY:s.category,CREDIT:rate?priceFor(s,rate,tier,settings):null,TIME:s.eta||'Consultar',AVAILABLE:!!s.available}))});
   if(action==='getimeiorder'||action==='orderstatus'){const id=Number(req.body?.id||req.body?.orderid||req.query.id);const o=get('SELECT id,status,created_at FROM orders WHERE id=? AND customer_name=?',id,req.reseller.label);return o?res.json({SUCCESS:[{ID:o.id,STATUS:o.status,CREATED:o.created_at}]}):error(res,404,'Pedido não encontrado')}
   if(action==='placeimeiorder'||action==='placeorder'){
    const serviceId=Number(req.body?.serviceid||req.body?.service_id),imei=String(req.body?.imei||req.body?.device_id||'').trim();
    if(!Number.isSafeInteger(serviceId)||!/^[-A-Za-z0-9]{8,40}$/.test(imei))return error(res,400,'Serviço e identificador válidos são obrigatórios');
+   // Optional backward-compatible idempotency key; clients should reuse it on retries.
+   const requestKey=String(req.headers['idempotency-key']||req.body?.request_id||'').trim();
+   if(requestKey && (requestKey.length>128||!/^[A-Za-z0-9_.:-]{8,128}$/.test(requestKey)))return error(res,400,'Chave de idempotência inválida');
+   const requestHash=requestKey?hash(requestKey):null;
+   const fingerprint=hash(JSON.stringify([serviceId,imei]));
    const s=get('SELECT * FROM services WHERE id=?',serviceId);
    if(!s)return error(res,404,'Serviço não encontrado');
    // Record request only: no wallet debit or external supplier action until confirmed.
-   const cost=rate?priceFor(quote(s.price_usd,rate,settings.margin_percent,settings.spread_brl),tier,settings):0;
-   const order=run('INSERT INTO orders(customer_name,device_model,service_id,price_brl,payment_status,status) VALUES (?,?,?,?,?,?)',req.reseller.label,imei,serviceId,cost,'pendente','pendente');
-   audit('orders',Number(order.lastInsertRowid),'reseller_api_request',req.reseller.label);
-   return res.status(202).json({SUCCESS:[{ID:Number(order.lastInsertRowid),STATUS:'Pending',MESSAGE:'Solicitação registrada. Aguardando validação; não enviada ao fornecedor.'}]});
+   const cost=rate?priceFor(s,rate,tier,settings):0;
+   db.exec('BEGIN IMMEDIATE');
+   let id;
+   try{
+    if(requestHash){
+     const prior=get('SELECT order_id,request_fingerprint FROM reseller_order_requests WHERE reseller_key_id=? AND request_key_hash=?',req.reseller.id,requestHash);
+     if(prior){
+      if(prior.request_fingerprint!==fingerprint){db.exec('ROLLBACK');return error(res,409,'Chave já utilizada com outro pedido')}
+      db.exec('COMMIT');
+      return res.status(202).json({SUCCESS:[{ID:prior.order_id,STATUS:'Pending',MESSAGE:'Solicitação já registrada. Aguardando validação; não enviada ao fornecedor.'}]});
+     }
+    }
+    const order=run('INSERT INTO orders(customer_name,device_model,service_id,price_brl,payment_status,status) VALUES (?,?,?,?,?,?)',req.reseller.label,imei,serviceId,cost,'pendente','pendente');
+    id=Number(order.lastInsertRowid);
+    if(requestHash)run('INSERT INTO reseller_order_requests(reseller_key_id,request_key_hash,request_fingerprint,order_id) VALUES (?,?,?,?)',req.reseller.id,requestHash,fingerprint,id);
+    run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,NULL,?,?,?)',id,'pendente','reseller_api',req.reseller.label);
+    audit('orders',id,'reseller_api_request',req.reseller.label);
+    db.exec('COMMIT');
+   }catch(e){db.exec('ROLLBACK');throw e}
+   return res.status(202).json({SUCCESS:[{ID:id,STATUS:'Pending',MESSAGE:'Solicitação registrada. Aguardando validação; não enviada ao fornecedor.'}]});
   }
   return error(res,400,'Ação não suportada. Use accountinfo, imeiservicelist, placeimeiorder ou getimeiorder.');
  };

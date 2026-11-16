@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Generate release manifest for the image (same format as the deploy job)
+        run: printf '{"commit":"%s","version":"3.0.0-rc1"}\n' "$GITHUB_SHA" > release-manifest.json
       - name: Build production image
         run: docker build -t websystem:ci .
       - name: Start local test container

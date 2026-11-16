@@ -7,7 +7,8 @@
     "dev:web": "vite --host 0.0.0.0",
     "build": "vite build",
     "start": "node api/server.mjs",
-    "inspect:web": "node scripts/web-inspector.mjs"
+    "inspect:web": "node scripts/web-inspector.mjs",
+    "inspect:ux": "node scripts/ux-ui-inspector.mjs"
   },
   "dependencies": {
     "concurrently": "^9.2.1",
@@ -15,7 +16,8 @@
     "express": "^5.1.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "nodemailer": "^10.5.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.0",
