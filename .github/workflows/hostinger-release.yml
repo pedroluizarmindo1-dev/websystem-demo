@@ -35,6 +35,7 @@ jobs:
           node scripts/qa-production-release-gates.mjs
           node scripts/qa-supplier-response.mjs
           node scripts/qa-order-transitions.mjs
+          node scripts/qa-pricing.mjs
           node scripts/qa-dhru-idempotency.mjs
       - name: Save QA report
         if: always()
