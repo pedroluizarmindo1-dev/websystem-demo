@@ -36,6 +36,8 @@ jobs:
         run: node scripts/qa-rbac-isolated.mjs
       - name: Security
         run: node scripts/qa-security-isolated.mjs
+      - name: Admin operations CSRF and Origin regression
+        run: node scripts/qa-admin-ops-security-gate.mjs
       - name: Admin operations
         run: node scripts/qa-admin-ops-isolated.mjs
       - name: Admin operations UI (headless Chrome)
