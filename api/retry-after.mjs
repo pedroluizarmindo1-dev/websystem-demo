@@ -5,9 +5,9 @@ const DEFAULT_RETRY_AFTER_MS=6*60*60*1000;
 export function retryAfterDelayMs(header,now=Date.now()){
  if(typeof header!=='string'||!header.trim())return DEFAULT_RETRY_AFTER_MS;
  const value=header.trim();let delay;
- if(/^\\d+$/.test(value)){
+ if(/^\d+$/.test(value)){
   delay=Number(value)*1000;
- }else if(/^[A-Za-z]{3,9}(?:,|\\s)/.test(value)){
+ }else if(/^[A-Za-z]{3,9}(?:,|\s)/.test(value)){
   const retryAt=Date.parse(value);
   if(!Number.isFinite(retryAt))return DEFAULT_RETRY_AFTER_MS;
   delay=Math.max(0,retryAt-now);
