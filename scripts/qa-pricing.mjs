@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {priceService} from '../api/pricing.mjs';
+import {retryAfterDelayMs} from '../api/retry-after.mjs';
 const check=(name,expected)=>{const p=priceService({name,category:'GSM Services',price_usd:10},5.5);assert.equal(p.selling_brl,expected,`${name} => ${p.category}`)};
 check('Server Tool Credits Activation',57.5);
 check('DT Pro Tool Add 10 Credit',80);
@@ -14,3 +15,15 @@ check('Tool Activation 3m',105);
 check('IMEI check service',83);
 assert.throws(()=>priceService({name:'test',price_usd:1},0));
 console.log('PRICING_QA_PASS: credits 2.50, rental 17, premium 50, standard 28, USD->BRL');
+
+const now=Date.UTC(2026,10,17,12,0,0);
+const sixHours=6*60*60*1000,oneDay=24*60*60*1000;
+assert.equal(retryAfterDelayMs('0',now),0,'zero seconds means retry immediately');
+assert.equal(retryAfterDelayMs('90',now),90000,'delta-seconds');
+assert.equal(retryAfterDelayMs(new Date(now+120000).toUTCString(),now),120000,'future HTTP-date');
+assert.equal(retryAfterDelayMs(new Date(now-120000).toUTCString(),now),0,'past HTTP-date');
+assert.equal(retryAfterDelayMs('172800',now),oneDay,'maximum delay is 24 hours');
+assert.equal(retryAfterDelayMs('invalid',now),sixHours,'invalid header fallback');
+assert.equal(retryAfterDelayMs(null,now),sixHours,'missing header fallback');
+assert.equal(retryAfterDelayMs('-1',now),sixHours,'negative delta-seconds rejected');
+console.log('RETRY_AFTER_QA_PASS: zero, seconds, HTTP-date, past date, invalid/missing fallback and 24h cap');
