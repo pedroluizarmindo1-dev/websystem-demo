@@ -34,7 +34,12 @@ async function start(extraEnv,{expectExit=false}={}){
   server.code=await Promise.race([new Promise(r=>child.on('exit',r)),delay(8000).then(()=>'still running')]);
   return server;
  }
- let ready=false;for(let i=0;i<60;i++){try{if((await call(server,'loopback','/api/health')).status===200){ready=true;break}}catch{}await delay(200)}
+ // CI runners may take longer than 12 seconds to initialize SQLite and dependencies.
+ const deadline=Date.now()+30000;let ready=false;
+ while(Date.now()<deadline&&child.exitCode===null){
+  try{if((await call(server,'loopback','/api/health')).status===200){ready=true;break}}catch{}
+  await delay(250);
+ }
  check(ready,'server did not start: '+server.output.slice(-300));
  return server;
 }
