@@ -45,7 +45,7 @@ jobs:
           if-no-files-found: warn
   deploy:
     needs: quality
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy == true && github.ref == 'refs/heads/release/client-build-2026-11-10'
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy == true
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 30
