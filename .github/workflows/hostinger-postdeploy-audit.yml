@@ -35,6 +35,9 @@ jobs:
           printf '%s\\n' "$headers" | grep -Eiq '^x-content-type-options:[[:space:]]*nosniff'
           printf '%s\\n' "$headers" | grep -Eiq '^x-frame-options:[[:space:]]*DENY'
           printf '%s\\n' "$headers" | grep -Eiq '^referrer-policy:'
+          printf '%s\n' "$headers" | grep -Eiq "^content-security-policy:.*default-src 'self'.*object-src 'none'.*frame-ancestors 'none'"
+          printf '%s\n' "$headers" | grep -Eiq '^strict-transport-security:[[:space:]]*max-age=31536000([;[:space:]]|$)'
+          echo "CSP_HSTS_OK"
           echo "BASIC_SECURITY_HEADERS_OK"
       - name: Validate server identity and SSH
         env:
