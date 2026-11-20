@@ -28,7 +28,8 @@ export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
  const process=(req,res)=>{
   const action=String(req.body?.action||req.query.action||'').toLowerCase();
   const tier=req.reseller.tier,rate=fx(),settings=config();
-  if(action==='accountinfo'||action==='balance')return res.json({SUCCESS:[{AccountName:req.reseller.label,Tier:tier,Currency:'BRL',Balance:wallet().balance_brl}]});
+  // wallet_entries is the platform-wide admin ledger, not a reseller ledger; never expose its aggregate to a reseller.
+  if(action==='accountinfo'||action==='balance')return res.json({SUCCESS:[{AccountName:req.reseller.label,Tier:tier,Currency:'BRL',Balance:0}]});
   if(action==='imeiservicelist'||action==='servicelist')return res.json({SUCCESS:all('SELECT id,name,category,price_usd,eta,available FROM services ORDER BY id DESC LIMIT 5000').map(s=>({SERVICEID:s.id,SERVICENAME:s.name,CATEGORY:s.category,CREDIT:rate?priceFor(s,rate,tier,settings):null,TIME:s.eta||'Consultar',AVAILABLE:!!s.available}))});
   if(action==='getimeiorder'||action==='orderstatus'){const id=Number(req.body?.id||req.body?.orderid||req.query.id);const o=get('SELECT id,status,created_at FROM orders WHERE id=? AND customer_name=?',id,req.reseller.label);return o?res.json({SUCCESS:[{ID:o.id,STATUS:o.status,CREATED:o.created_at}]}):error(res,404,'Pedido não encontrado')}
   if(action==='placeimeiorder'||action==='placeorder'){
