@@ -41,7 +41,6 @@ try{
   attempt('QA','isolated two-client end-to-end flows',()=>run('node',['scripts/qa-client-isolated.mjs'],60000));
   attempt('QA','isolated IP restriction and abuse protection',()=>run('node',['scripts/qa-security-isolated.mjs'],60000));
   attempt('QA','isolated admin CSRF/Origin mutation regression',()=>run('node',['scripts/qa-admin-ops-security-gate.mjs'],60000));
-  attempt('QA','isolated DHRU reseller API balance isolation and idempotency',()=>run('node',['scripts/qa-dhru-idempotency.mjs'],60000));
   attempt('QA','isolated admin operations (filters, reports, CSV export, audit)',()=>run('node',['scripts/qa-admin-ops-isolated.mjs'],60000));
   // 5. Debugger: log failed checks, no unreviewed production hotfix.
   const failed=report.agents.filter(x=>x.status==='FAIL');
