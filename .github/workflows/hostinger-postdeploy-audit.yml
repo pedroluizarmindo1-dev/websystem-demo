@@ -35,6 +35,9 @@ jobs:
           printf '%s\\n' "$headers" | grep -Eiq '^x-content-type-options:[[:space:]]*nosniff'
           printf '%s\\n' "$headers" | grep -Eiq '^x-frame-options:[[:space:]]*DENY'
           printf '%s\\n' "$headers" | grep -Eiq '^referrer-policy:'
+          printf '%s\n' "$headers" | grep -Eiq "^content-security-policy:.*default-src 'self'.*object-src 'none'.*frame-ancestors 'none'"
+          printf '%s\n' "$headers" | grep -Eiq '^strict-transport-security:[[:space:]]*max-age=31536000([;[:space:]]|$)'
+          echo "CSP_HSTS_OK"
           echo "BASIC_SECURITY_HEADERS_OK"
       - name: Validate server identity and SSH
         env:
@@ -72,6 +75,15 @@ jobs:
           console.log("ADMIN_IP_ALLOWLIST_CONFIGURED");
           if(!process.env.TRUST_PROXY?.trim())throw Error("TRUST_PROXY is not configured");
           console.log("TRUST_PROXY_CONFIGURED");
+          if(process.env.APP_ORIGIN!=="https://unlockertools.tech")throw Error("APP_ORIGIN does not match production origin");
+          console.log("APP_ORIGIN_CONFIGURED");
+          if(process.env.COOKIE_SECURE!=="true")throw Error("COOKIE_SECURE must be true in production");
+          console.log("COOKIE_SECURE_ENABLED");
+          const supplierKeys=["IMEIVE_API_URL","IMEIVE_API_USERNAME","IMEIVE_API_KEY"];
+          const supplierConfigured=supplierKeys.map(k=>Boolean(process.env[k]?.trim()));
+          if(supplierConfigured.some(Boolean)&&!supplierConfigured.every(Boolean))throw Error("IMEIVE supplier configuration is incomplete");
+          if(supplierConfigured.every(Boolean)&&process.env.IMEIVE_API_URL!=="https://imeiveserver.com/api/index.php")throw Error("IMEIVE API endpoint is not the approved HTTPS endpoint");
+          console.log(supplierConfigured.every(Boolean)?"IMEIVE_CREDENTIALS_PRESENT":"IMEIVE_INTEGRATION_DISABLED");
           for(const name of ["auth.sqlite","websystem.sqlite"]){
             const db=new DatabaseSync("/app/data/"+name,{readOnly:true});
             try{
