@@ -99,7 +99,7 @@ try{
   const {authdb,hashPassword,issue}=await import('file://'+join(s.temp,'api/auth.mjs'));
   const h=hashPassword('isolated-proxy-trust-password-123');
   const admin=issue({id:Number(authdb.prepare('INSERT INTO users(username,password_salt,password_hash,role) VALUES (?,?,?,?)').run('proxy-admin',h.salt,h.hash,'admin').lastInsertRowid)});
-  const key=await call(s,'loopback','/api/reseller/keys',{method:'POST',body:{label:'QA Reseller',allowed_ip:RESELLER_IP,tier:'lojista'},headers:{Cookie:'ws_session='+admin}});
+  const key=await call(s,'loopback','/api/reseller/keys',{xff:ADMIN_IP,method:'POST',body:{label:'QA Reseller',allowed_ip:RESELLER_IP,tier:'lojista'},headers:{Cookie:'ws_session='+admin}});
   check(key.status===201&&key.data?.token,'reseller key creation -> '+key.status);
   const dhru=xff=>call(s,'peer','/api/dhru?action=accountinfo',{xff,headers:{'X-API-Key':key.data.token}});
   check((await dhru(RESELLER_IP)).status===200,label+': reseller calling from its allowed IP must be accepted');
