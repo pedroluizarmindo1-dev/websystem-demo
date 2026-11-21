@@ -52,7 +52,7 @@ const wrap=fn=>(req,res)=>{try{fn(req,res)}catch(e){res.status(400).json({error:
 const cookies=req=>Object.fromEntries((req.headers.cookie||'').split(';').map(s=>s.trim().split('=').map(decodeURIComponent)).filter(a=>a.length===2));
 const session=req=>getSession(cookies(req).ws_session);
 const guard=(req,res,next)=>{const user=session(req);if(!user)return res.status(401).json({error:'Login necessário'});req.user=user;next()};
-const adminOnly=(req,res,next)=>guard(req,res,()=>req.user.role==='admin'?next():res.status(403).json({error:'Acesso restrito'}));
+const adminOnly=(req,res,next)=>adminIpGate(req,res,()=>guard(req,res,()=>req.user.role==='admin'?next():res.status(403).json({error:'Acesso restrito'})));
 db.exec(`CREATE TABLE IF NOT EXISTS security_events(id INTEGER PRIMARY KEY,actor TEXT NOT NULL,action TEXT NOT NULL,outcome TEXT NOT NULL,ip TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
 // Persistent IP abuse protection survives container restarts; tokens and passwords are never logged.
 db.exec(`CREATE TABLE IF NOT EXISTS auth_ip_limits(ip TEXT NOT NULL,route TEXT NOT NULL,failures INTEGER NOT NULL DEFAULT 0,window_until INTEGER NOT NULL DEFAULT 0,blocked_until INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(ip,route))`);
@@ -86,12 +86,12 @@ app.get('/api/health',(req,res)=>{
  } catch { /* Legacy deployment without release manifest. */ }
  res.json({ok:true,app:'WebSystem UNLOCKER Tools',...release});
 });
-app.get('/api/readiness',guard,(req,res)=>{if(req.user.role!=='admin')return res.status(403).json({error:'Acesso restrito'});const configured=!!(process.env.IMEIVE_API_URL&&process.env.IMEIVE_API_USERNAME&&process.env.IMEIVE_API_KEY);const count=get("SELECT COUNT(*) AS n FROM services WHERE source='imeive'")?.n||0;res.setHeader('Cache-Control','no-store');res.json({version:'1.0.0-rc1',supplier_credentials_configured:configured,supplier_catalog_count:count,database_persistent:process.env.DATA_DIR?true:false,automatic_fulfillment_enabled:false,production_ready:false})});
+app.get('/api/readiness',adminOnly,(req,res)=>{const configured=!!(process.env.IMEIVE_API_URL&&process.env.IMEIVE_API_USERNAME&&process.env.IMEIVE_API_KEY);const count=get("SELECT COUNT(*) AS n FROM services WHERE source='imeive'")?.n||0;res.setHeader('Cache-Control','no-store');res.json({version:'1.0.0-rc1',supplier_credentials_configured:configured,supplier_catalog_count:count,database_persistent:process.env.DATA_DIR?true:false,automatic_fulfillment_enabled:false,production_ready:false})});
 // Token-protected reseller endpoints are mounted before the browser session guard.
 mountClientArea(app,db,{adminGuard:guard});
 mountAdminOps(app,db);
 mountWallet(app,db,{adminGuard:guard});
-mountCommerce(app,db,{sessionGuard:guard,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
+mountCommerce(app,db,{adminGuard:adminOnly,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
 const publicLookupAttempts=new Map();
 app.post('/api/public/order-lookup',(req,res)=>{
