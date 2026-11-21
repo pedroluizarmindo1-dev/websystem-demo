@@ -8,9 +8,9 @@ const validIp=(s)=>/^(?:\d{1,3}\.){3}\d{1,3}$/.test(s)||s==='::1'||/^[a-f\d:]+$/
 // req.ip honours TRUST_PROXY: behind our reverse proxy it is the reseller's address, not the proxy's.
 const clientIp=req=>String(req.ip||req.socket.remoteAddress||'').replace(/^::ffff:/,'');
 const priceFor=(service,rate,tier,settings)=>{const base=priceService(service,rate).selling_brl;return Math.round(Math.max(0,base*(1-(Number(settings[tier+'_discount_percent'])||0)/100))*100)/100};
-export function mountCommerce(app,db,{sessionGuard,config,quote,audit}){
+export function mountCommerce(app,db,{adminGuard,config,quote,audit}){
  const all=(s,...p)=>db.prepare(s).all(...p),get=(s,...p)=>db.prepare(s).get(...p),run=(s,...p)=>db.prepare(s).run(...p);
- const protect=(req,res,next)=>sessionGuard(req,res,()=>req.user?.role==='admin'?next():error(res,403,'Acesso restrito'));
+ const protect=adminGuard;
  const wrap=fn=>(req,res)=>{try{fn(req,res)}catch(e){error(res,400,e.message)}};
  const fx=()=>get('SELECT rate FROM exchange_rates ORDER BY id DESC LIMIT 1')?.rate||0;
  const wallet=()=>{const entries=all('SELECT * FROM wallet_entries ORDER BY id DESC LIMIT 300');const balance=all("SELECT kind,amount_brl FROM wallet_entries WHERE status='approved'").reduce((n,e)=>n+(e.kind==='credit'||e.kind==='refund'?e.amount_brl:-e.amount_brl),0);return {balance_brl:Math.round(balance*100)/100,entries}};
