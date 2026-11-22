@@ -42,9 +42,15 @@ jobs:
         run: node scripts/qa-admin-ops-isolated.mjs
       - name: Admin operations UI (headless Chrome)
         run: node scripts/qa-admin-ops-ui.mjs
+      - name: Public home page UI (headless Chrome)
+        run: node scripts/qa-home-ui.mjs
+      - name: Client area UI (headless Chrome)
+        run: node scripts/qa-client-area-ui.mjs
       - name: Smoke
         run: node scripts/qa-smoke.mjs
       - name: Pricing
         run: node scripts/qa-pricing.mjs
       - name: Client IP behind a reverse proxy
         run: node scripts/qa-proxy-trust-isolated.mjs
+      - name: DHRU reseller API balance isolation and idempotency
+        run: node scripts/qa-dhru-idempotency.mjs

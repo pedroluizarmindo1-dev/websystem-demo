@@ -24,6 +24,12 @@ try{
  let ready=false;
  for(let i=0;i<60;i++){try{if((await fetch(base+'/api/health',{signal:AbortSignal.timeout(500)})).ok){ready=true;break}}catch{}await delay(250)}
  assert.ok(ready,'Isolated server ready: '+stderr.slice(-1000));
+ // Seed the platform-wide admin ledger: accountinfo must never disclose this aggregate to a reseller.
+ db.prepare("INSERT INTO wallet_entries(kind,amount_brl,status) VALUES ('credit',98765.43,'approved')").run();
+ const accountResponse=await fetch(base+'/api/dhru',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://unlockertools.tech','x-api-key':token},body:JSON.stringify({action:'accountinfo'})});
+ const accountBody=await accountResponse.json();
+ assert.equal(accountResponse.status,200,JSON.stringify(accountBody));
+ assert.equal(accountBody.SUCCESS?.[0]?.Balance,0,'Reseller accountinfo must not expose the platform-wide wallet balance');
  const place=async(key,imei='123456789012345')=>{
   const r=await fetch(base+'/api/dhru',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://unlockertools.tech','x-api-key':token,...(key?{'idempotency-key':key}:{})},body:JSON.stringify({action:'placeimeiorder',serviceid:1,imei})});
   return {status:r.status,body:await r.json()};
