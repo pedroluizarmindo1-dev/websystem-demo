@@ -42,6 +42,11 @@ try{
  const ins=db.prepare('INSERT INTO services(name,category,brand,model,price_usd,eta,available) VALUES (?,?,?,?,?,?,1)');
  ins.run('QA iCloud Check','Apple · iCloud / FMI','Apple','iPhone',1,'1-5 min');ins.run('QA Unlock Code Samsung','Desbloqueio de rede','Samsung','Galaxy',5,'1-2 h');
  db.close();
+ // Facets must follow the active search/type filters, not show unrelated global categories.
+ const facetResponse=await fetch(base+'/api/public/catalog?q='+encodeURIComponent('QA iCloud'));
+ check(facetResponse.ok,'filtered catalog API');
+ const facets=await facetResponse.json();
+ check(facets.total===1&&facets.categories.length===1&&facets.categories[0].category==='Apple · iCloud / FMI','catalog facets follow search');
 
  browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--lang=pt-BR']});
  for(const [name,width,height,mobile] of [['desktop',1440,900,false],['phone',390,844,true]]){

@@ -143,14 +143,15 @@ app.get('/api/public/catalog',rateLimit({max:90,windowMs:60000,keyPrefix:'public
  const offset=Math.min(10000,Math.max(0,Number.parseInt(req.query.offset,10)||0));
  const where=["(available=1 OR source='telegram-announcement')"];const params=[];
  if(query){where.push('(name LIKE ? OR category LIKE ? OR brand LIKE ? OR model LIKE ?)');params.push(...Array(4).fill('%'+query+'%'))}
- if(category){where.push('category=?');params.push(category)}
  const main=String(req.query.main||'').trim().toUpperCase();if(['IMEI','SERVER','REMOTE','OTHER'].includes(main)){where.push(main==='OTHER'?"(source!='imeive' OR COALESCE((SELECT UPPER(json_extract(metadata_json,'$.serviceType')) FROM supplier_service_fields WHERE external_id=services.external_id),'OTHER') NOT IN ('IMEI','SERVER','REMOTE'))":"UPPER(COALESCE((SELECT json_extract(metadata_json,'$.serviceType') FROM supplier_service_fields WHERE external_id=services.external_id),''))=?");if(main!=='OTHER')params.push(main)}
+ const facetWhere=[...where],facetParams=[...params];
+ if(category){where.push('category=?');params.push(category)}
  const services=all(`SELECT id,name,category,brand,model,eta,price_usd,CASE WHEN available=1 THEN 'confirmed' ELSE 'reference_only' END AS availability,CASE WHEN source='imeive' THEN 'imeive' WHEN source='telegram-announcement' THEN 'public_announcement' ELSE 'manual' END AS catalog_source FROM services WHERE ${where.join(' AND ')} ORDER BY CASE WHEN source='imeive' THEN 0 WHEN available=1 THEN 1 ELSE 2 END,category,name,id LIMIT ? OFFSET ?`,...params,limit,offset);
  const rate=get('SELECT rate FROM exchange_rates ORDER BY id DESC LIMIT 1')?.rate;
  const listed=services.map(({price_usd,...service})=>({...service,...(service.catalog_source==='imeive'&&rate>0?{price_brl:priceService({...service,price_usd},rate).selling_brl,currency:'BRL'}:{})}));
  const total=get(`SELECT COUNT(*) AS n FROM services WHERE ${where.join(' AND ')}`,...params)?.n||0;
  const hierarchy=all(`SELECT s.category,COALESCE(json_extract(m.metadata_json,'$.serviceType'),'OTHER') AS service_type,COUNT(*) AS total FROM services s LEFT JOIN supplier_service_fields m ON m.external_id=s.external_id WHERE s.available=1 OR s.source='telegram-announcement' GROUP BY s.category,service_type ORDER BY total DESC LIMIT 500`).map(x=>({main_category:['IMEI','SERVER','REMOTE'].includes(String(x.service_type).toUpperCase())?String(x.service_type).toUpperCase():'OTHER',category:x.category,subcategory:'Geral',total:x.total}));
- const categories=all("SELECT category,COUNT(*) AS total FROM services WHERE available=1 OR source='telegram-announcement' GROUP BY category ORDER BY total DESC LIMIT 40");
+ const categories=all(`SELECT category,COUNT(*) AS total FROM services WHERE ${facetWhere.join(' AND ')} GROUP BY category ORDER BY total DESC,category`,...facetParams);
  res.setHeader('Cache-Control','public, max-age=60');res.json({services:listed,categories,hierarchy,total,offset,has_more:offset+listed.length<total});
 });
 // All application data requires login, including catalog and prices.
