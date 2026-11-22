@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><meta name="theme-color" content="#070a0a"><title>Área do Cliente | UNLOCKER Tools</title><link rel="stylesheet" href="/material-black.css"><link rel="stylesheet" href="/unlocker-premium.css"><link rel="icon" type="image/svg+xml" href="/unlocker-tools-mark.svg"/><style>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><meta name="description" content="Área do Cliente UNLOCKER Tools: pedidos, carteira e suporte."><meta name="theme-color" content="#070a0a"><title>Área do Cliente | UNLOCKER Tools</title><link rel="stylesheet" href="/material-black.css"><link rel="stylesheet" href="/unlocker-premium.css"><link rel="icon" type="image/svg+xml" href="/unlocker-tools-mark.svg"/><style>
 /* Client area redesign — dark surface, rounded elements, primary #2DD4BF. IDs and data attributes used by cliente.js
    are unchanged; signed-in layout is switched with body.ca-signed-in (set by cliente.js after /me succeeds). */
 .ut-client{--ca-bg:#070a0a;--ca-surface:#0d1514;--ca-raised:#111c1a;--ca-line:#1f2f2c;--ca-line-strong:#2b4540;--ca-text:#eef7f5;--ca-muted:#9db3ae;--ca-accent:#2dd4bf;--ca-ink:#04201c;margin:0;min-height:100dvh;overflow-x:hidden;color:var(--ca-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(ellipse 60% 35% at 85% -5%,#0f3a33 0%,transparent 60%),var(--ca-bg);-webkit-font-smoothing:antialiased}
@@ -31,12 +31,12 @@ body.ca-signed-in #msg:empty{display:none}
 
 /* ---------- signed-out (login, sign-up, recovery) ---------- */
 .ca-topline{display:flex;align-items:center;justify-content:space-between;gap:14px;width:min(1120px,calc(100% - 40px));margin:0 auto;min-height:72px;flex-wrap:wrap}
-.ca-brand{display:flex;align-items:center;gap:11px;color:var(--ca-text)!important;text-decoration:none!important}
+.ca-brand{display:flex;align-items:center;gap:11px;min-height:44px;color:var(--ca-text)!important;text-decoration:none!important}
 .ca-brand img{width:36px;height:36px}
 .ca-brand strong{display:block;font-size:15px;letter-spacing:.08em;font-weight:850}
-.ca-brand small{display:block;font-size:10px;letter-spacing:.14em;color:var(--ca-accent);font-weight:700;text-transform:uppercase;margin-top:2px}
+.ca-brand small{display:block;font-size:11px;letter-spacing:.14em;color:var(--ca-accent);font-weight:700;text-transform:uppercase;margin-top:2px}
 .ca-topline-actions{display:flex;align-items:center;gap:10px}
-.ca-topline-actions>a{padding:10px 12px;border-radius:12px;color:#c3d6d2;font-size:14px;font-weight:600}
+.ca-topline-actions>a{display:inline-flex;align-items:center;min-height:44px;padding:10px 12px;border-radius:12px;color:#c3d6d2;font-size:14px;font-weight:600}
 .ca-topline-actions>a:hover{background:#ffffff0a;text-decoration:none}
 .ut-client .ut-language-label{flex-direction:row;align-items:center;margin:0;font-size:0;gap:0}
 .ut-client .ut-language{min-height:40px;padding:8px 10px;border-radius:12px;font-size:13px;width:auto}
