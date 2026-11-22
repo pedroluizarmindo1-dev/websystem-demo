@@ -44,6 +44,8 @@ jobs:
         run: node scripts/qa-admin-ops-ui.mjs
       - name: Public home page UI (headless Chrome)
         run: node scripts/qa-home-ui.mjs
+      - name: Client area UI (headless Chrome)
+        run: node scripts/qa-client-area-ui.mjs
       - name: Smoke
         run: node scripts/qa-smoke.mjs
       - name: Pricing
