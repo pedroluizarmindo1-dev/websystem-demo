@@ -88,6 +88,16 @@ try{
   await page.click('#clientNav [data-panel="place"]');
   await page.waitForFunction(()=>document.querySelectorAll('#catalogResults article').length===2);
   await noOverflow('catalog');await page.screenshot({path:join(shots,name+'-catalog.png'),fullPage:true});
+  // type tabs and category chips
+  check(await page.$$eval('#catalogTypes [data-main]',b=>b.length)===5,name+': catalog type tabs');
+  const chips=await page.$$eval('#catalogCategories button',b=>b.map(x=>x.textContent));
+  check(chips.length===3&&chips.some(c=>c.startsWith('Desbloqueio de rede')),name+': category chips '+JSON.stringify(chips));
+  await page.$$eval('#catalogCategories button',b=>b.find(x=>x.textContent.startsWith('Desbloqueio de rede')).click());
+  await page.waitForFunction(()=>document.querySelectorAll('#catalogResults article').length===1&&!document.getElementById('catalogClear').hidden);
+  await page.click('#catalogTypes [data-main="IMEI"]');
+  await page.waitForFunction(()=>/Nenhum serviço/.test(document.getElementById('catalogResults').textContent));
+  await page.click('#catalogClear');
+  await page.waitForFunction(()=>document.querySelectorAll('#catalogResults article').length===2&&document.getElementById('catalogClear').hidden&&document.querySelector('#catalogTypes [data-main=""]').getAttribute('aria-pressed')==='true');
   await page.$$eval('#catalogResults article',arts=>arts.find(a=>a.textContent.includes('QA Unlock Code Samsung')).querySelector('button').click());
   await page.waitForSelector('[data-client-panel="order"]:not([hidden]) #draftOrder');
   await page.type('#imeiPrimary','490154203237518');await page.type('#draftOrder [name=device_model]','Galaxy S22');
@@ -103,6 +113,10 @@ try{
   check(mobile?toast.bottom<=toast.navTop&&toast.top>toast.h/2:toast.top<toast.h/3,name+': toast placement '+JSON.stringify(toast));
   await page.waitForFunction(()=>[...document.querySelectorAll('#drafts>article')].some(a=>a.textContent.includes('QA Unlock Code Samsung')&&a.querySelector('.ca-pill')));
 
+  // wallet panel: balance and read-only statement
+  await page.click('#clientNav [data-panel="wallet"]');
+  await page.waitForFunction(()=>/Nenhuma movimentação/.test(document.getElementById('walletHistory').textContent)&&/R\$\s?0,00/.test(document.getElementById('walletPanelBalance').textContent));
+  await noOverflow('wallet');await page.screenshot({path:join(shots,name+'-wallet.png'),fullPage:true});
   // support ticket
   await page.click('#clientNav [data-panel="support"]');
   await page.type('#ticket [name=subject]','Pedido #'+orders[1]+' sem retorno');await page.type('#ticket [name=description]','Mensagem de teste do QA.');
@@ -112,7 +126,8 @@ try{
 
   // profile and logout
   await page.click('#clientNav [data-panel="profile"]');
-  check(await page.$eval('#profileInfo',p=>p.textContent.includes('cliente.qa@example.test')),name+': profile shows the account e-mail');
+  check(await page.$eval('#profileInfo',p=>p.textContent.includes('cliente.qa@example.test')&&p.querySelectorAll('dt').length===3),name+': profile shows the account e-mail');
+  await noOverflow('profile');await page.screenshot({path:join(shots,name+'-profile.png'),fullPage:true});
   await page.click('#logout');
   await page.waitForFunction(()=>!document.body.classList.contains('ca-signed-in')&&!document.getElementById('loginBox').hidden);
   check(await page.$eval('.ca-auth',e=>getComputedStyle(e).display!=='none')&&await page.$eval('#msg',m=>m.textContent.includes('Sessão encerrada')),name+': back to the login screen after logout');
@@ -134,7 +149,7 @@ try{
   check(pills.includes('Completed')&&pills.includes('In progress')&&pills.some(x=>x.startsWith('Payment: ')),'en: status badges '+JSON.stringify(pills));
   await page.screenshot({path:join(shots,'desktop-en-orders.png'),fullPage:true});
   await ctx.close()}
- console.log('CLIENT_AREA_UI_PASS: login, sidebar/bottom bar, dashboard indicators, order badges and history, catalog -> draft, ticket, profile, logout on desktop and phone; readable order review; toast placement; English locale');
+ console.log('CLIENT_AREA_UI_PASS: login, sidebar/bottom bar, dashboard indicators, order badges and history, catalog -> draft, ticket, profile, logout on desktop and phone; catalog type/category filters; wallet statement; readable order review; toast placement; English locale');
 }finally{
  if(browser)await browser.close().catch(()=>{});
  if(child){child.kill('SIGTERM');await delay(150)}

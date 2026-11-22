@@ -247,6 +247,6 @@ if(existsSync(resolve(dist,'index.html'))){
  app.get('/client/wallet',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'wallet.html'))});
  app.use(express.static(dist,{index:false,maxAge:'1h',setHeaders:(res,file)=>{if(/\\.html$/i.test(file))res.setHeader('Cache-Control','no-store')}}));
  app.get('/',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'home.html'))});
- app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});return res.status(404).send('Página não encontrada')});
+ app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'API endpoint not found'});res.setHeader('Cache-Control','no-store');return res.status(404).sendFile(resolve(dist,'404.html'),err=>{if(err&&!res.headersSent)res.status(404).send('Página não encontrada')})});
 }
 app.listen(port,host,()=>console.log('WebSystem production: http://'+host+':'+port));

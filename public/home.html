@@ -18,16 +18,16 @@
 /* header */
 .hp-header{position:sticky;top:0;z-index:40;background:#070a0acc;backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);border-bottom:1px solid var(--hp-line)}
 .hp-header-inner{display:flex;align-items:center;gap:20px;min-height:72px}
-.hp-brand{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.hp-brand{display:flex;align-items:center;gap:11px;flex-shrink:0;min-height:44px}
 .hp-brand img{width:38px;height:38px}
 .hp-brand strong{display:block;font-size:16px;letter-spacing:.08em;font-weight:850}
-.hp-brand small{display:block;font-size:10px;letter-spacing:.14em;color:var(--hp-accent);font-weight:700;margin-top:2px;text-transform:uppercase}
+.hp-brand small{display:block;font-size:11px;letter-spacing:.14em;color:var(--hp-accent);font-weight:700;margin-top:2px;text-transform:uppercase}
 .hp-nav{display:flex;align-items:center;gap:4px;margin-left:auto}
 .hp-nav a{padding:10px 14px;border-radius:12px;color:#c3d6d2;font-size:14px;font-weight:600}
 .hp-nav a:hover{color:#fff;background:#ffffff0a}
 .hp-header-actions{display:flex;align-items:center;gap:10px}
 .hp-header .ut-language-label{font-size:0;gap:0}
-.hp-header .ut-language{border-radius:12px;background:#0f1918;border-color:var(--hp-line-strong);padding:9px 10px;font-size:13px}
+.hp-header .ut-language{min-height:44px;border-radius:12px;background:#0f1918;border-color:var(--hp-line-strong);padding:9px 10px;font-size:13px}
 .hp-menu{display:none}
 .hp-menu summary{list-style:none;display:grid;place-items:center;width:44px;height:44px;border-radius:13px;border:1px solid var(--hp-line-strong);background:#0f1918;cursor:pointer;color:var(--hp-text)}
 .hp-menu summary::-webkit-details-marker{display:none}
@@ -64,7 +64,7 @@
 .hp-cat small{font-size:12px;color:var(--hp-muted);display:block;margin-top:3px;line-height:1.4}
 .hp-panel-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:14px 16px;border-radius:16px;background:#2dd4bf12;border:1px solid #2dd4bf33;position:relative}
 .hp-panel-foot p{margin:0;font-size:13px;color:#cdeee8;line-height:1.45}
-.hp-panel-foot a{color:var(--hp-accent);font-weight:800;font-size:13px;white-space:nowrap}
+.hp-panel-foot a{display:inline-flex;align-items:center;min-height:40px;color:var(--hp-accent);font-weight:800;font-size:13px;white-space:nowrap}
 /* trust strip */
 .hp-trust{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:40px 0 0}
 .hp-trust div{display:flex;gap:14px;align-items:flex-start;padding:18px;border-radius:18px;border:1px solid var(--hp-line);background:#0b1211}
@@ -85,7 +85,7 @@
 .ut-home .ut-catalog-controls input:focus,.ut-home .ut-catalog-controls select:focus{border-color:var(--hp-accent);outline:none;box-shadow:0 0 0 4px #2dd4bf1f}
 .hp-chips{display:flex;gap:8px;overflow-x:auto;padding:16px 0 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .hp-chips::-webkit-scrollbar{display:none}
-.hp-chips button{flex:0 0 auto;min-height:38px;padding:8px 14px;border-radius:999px;border:1px solid var(--hp-line-strong);background:#0f1918;color:#c8dfda;font-size:13px;font-weight:650;cursor:pointer}
+.hp-chips button{flex:0 0 auto;min-height:44px;padding:8px 14px;border-radius:999px;border:1px solid var(--hp-line-strong);background:#0f1918;color:#c8dfda;font-size:13px;font-weight:650;cursor:pointer}
 .hp-chips button:hover{border-color:var(--hp-accent)}
 .hp-chips button[aria-pressed="true"]{background:var(--hp-accent);border-color:var(--hp-accent);color:var(--hp-accent-ink)}
 .hp-chips:empty{display:none}
@@ -154,7 +154,7 @@
 .hp-footer{margin-top:72px;border-top:1px solid var(--hp-line);padding:36px 0 40px;color:#86a19b;font-size:13px}
 .hp-footer-grid{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:flex-start}
 .hp-footer p{margin:10px 0 0;max-width:420px;line-height:1.55}
-.hp-footer nav{display:flex;flex-wrap:wrap;gap:6px 18px}
+.hp-footer nav{display:flex;flex-wrap:wrap;gap:2px 8px}.hp-footer nav a{display:inline-flex;align-items:center;min-height:40px;padding:0 8px}
 .hp-footer nav a:hover{color:var(--hp-text)}
 .hp-footer-copy{margin-top:24px;padding-top:18px;border-top:1px solid var(--hp-line);font-size:12px}
 /* WhatsApp button: same element, quieter on the dark surface */
