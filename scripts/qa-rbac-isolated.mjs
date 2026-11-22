@@ -17,6 +17,9 @@ try{
  const h=hashPassword('isolated-test-password-1234');
  const u=authdb.prepare('INSERT INTO users(username,password_salt,password_hash,role) VALUES (?,?,?,?)').run('qa-nonadmin',h.salt,h.hash,'viewer');
  const token=issue({id:Number(u.lastInsertRowid)});
+ const adminHash=hashPassword('isolated-admin-password-1234');
+ const adminRow=authdb.prepare('INSERT INTO users(username,password_salt,password_hash,role) VALUES (?,?,?,?)').run('qa-admin',adminHash.salt,adminHash.hash,'admin');
+ const adminToken=issue({id:Number(adminRow.lastInsertRowid)});
  child=spawn(process.execPath,[join(temp,'api/server.mjs')],{cwd:temp,env:{...process.env,PORT:port,HOST:'127.0.0.1',APP_ORIGIN:'https://unlockertools.tech',ADMIN_ALLOWED_IPS:'127.0.0.1',WALLET_REQUESTS_ENABLED:'false'},stdio:'pipe'});
  const base='http://127.0.0.1:'+port;
  let ready=false;
@@ -32,6 +35,14 @@ try{
   const r=await fetch(base+path,{method,headers:{Cookie:'ws_session='+token,Origin:'https://unlockertools.tech','Content-Type':'application/json'},...(method==='GET'?{}:{body:'{}'}),signal:AbortSignal.timeout(3000)});
   if(r.status!==403)throw Error(method+' '+path+' expected 403 got '+r.status);
   console.log('RBAC_DENIED',method,path,r.status);
+ }
+ const adminHeaders={Cookie:'ws_session='+adminToken,Origin:'https://unlockertools.tech'};
+ for(const path of ['/api/orders','/api/wallet','/api/readiness']){
+  const remote=await fetch(base+path,{headers:{...adminHeaders,'X-Forwarded-For':'203.0.113.77'},signal:AbortSignal.timeout(3000)});
+  if(remote.status!==404)throw Error('Admin IP gate '+path+' expected 404 from non-allowlisted IP, got '+remote.status);
+  const local=await fetch(base+path,{headers:adminHeaders,signal:AbortSignal.timeout(3000)});
+  if(local.status!==200)throw Error('Admin IP gate '+path+' expected 200 from allowlisted IP, got '+local.status);
+  console.log('ADMIN_IP_GATE_PASS',path,'remote',remote.status,'local',local.status);
  }
  console.log('RBAC_ISOLATED_PASS');
 }finally{if(child){child.kill('SIGTERM');await delay(150)}rmSync(temp,{recursive:true,force:true})}

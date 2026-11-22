@@ -52,3 +52,5 @@ jobs:
         run: node scripts/qa-pricing.mjs
       - name: Client IP behind a reverse proxy
         run: node scripts/qa-proxy-trust-isolated.mjs
+      - name: DHRU reseller API balance isolation and idempotency
+        run: node scripts/qa-dhru-idempotency.mjs
