@@ -167,8 +167,34 @@ body.ca-signed-in .ca-topline{display:none}
 /* support + profile */
 .ca-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
 #ticket button{width:100%}
-#profileInfo{font-size:15px;font-weight:650;padding:16px;border-radius:16px;border:1px solid var(--ca-line);background:#0b1211;margin-bottom:14px;overflow-wrap:anywhere}
+.ca-dl{display:grid;grid-template-columns:max-content 1fr;gap:0 18px;margin:0}.ca-dl dt,.ca-dl dd{margin:0;padding:12px 0;border-bottom:1px solid var(--ca-line);font-size:14px}.ca-dl dt{color:var(--ca-muted)}.ca-dl dd{text-align:right;font-weight:650;overflow-wrap:anywhere}.ca-dl dt:last-of-type,.ca-dl dd:last-of-type{border-bottom:0}.ca-links-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.ca-links-row a{display:inline-flex;align-items:center;min-height:42px;padding:8px 14px;border-radius:12px;border:1px solid var(--ca-line-strong);color:var(--ca-text)!important;font-size:13.5px;font-weight:650;text-decoration:none!important}.ca-links-row a:hover{border-color:var(--ca-accent)}
 #walletNotice{margin:0 0 14px;padding:14px 16px;border-radius:14px;border:1px solid #5f5226;background:#211d10;color:#f1e6b8;font-size:13.5px}
+
+/* catalog filters in "Novo pedido" */
+.ca-types{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;padding:4px;border-radius:14px;border:1px solid var(--ca-line);background:#0a1110;width:fit-content;max-width:100%}
+.ut-client .ca-types button{min-height:40px;padding:8px 14px;border-radius:10px;border:1px solid transparent;background:transparent;color:#b6cbc6;font-size:13.5px;font-weight:700}
+.ut-client .ca-types button:hover:not(:disabled){background:#ffffff08;border-color:transparent}
+.ut-client .ca-types button[aria-pressed="true"]{background:var(--ca-accent);border-color:var(--ca-accent);color:var(--ca-ink)}
+.ca-cats{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 0 4px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.ut-client .ca-cats button{flex:0 0 auto;min-height:40px;padding:8px 14px;border-radius:999px;border:1px solid var(--ca-line-strong);background:#0f1918;color:#c8dfda;font-size:13px;font-weight:650}
+.ut-client .ca-cats button small{margin-left:4px;color:#7f9893;font-weight:600;font-size:12px}
+.ut-client .ca-cats button[aria-pressed="true"]{border-color:var(--ca-accent);background:#2dd4bf1f;color:#fff}
+.ut-client .ca-cats button[aria-pressed="true"] small{color:#9fe9dc}
+.ca-filterbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:28px;margin:0 0 10px;font-size:13px;color:#86a19b}
+.ut-client .ca-link{min-height:36px;padding:6px 10px;background:transparent;border-color:transparent;color:var(--ca-accent);font-size:13px}
+.ut-client .ca-link:hover:not(:disabled){background:#2dd4bf14;border-color:transparent}
+/* wallet panel */
+.ca-wallet-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.ca-label{display:block;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ca-accent);margin-bottom:6px}
+#walletPanelBalance{display:block;font-size:30px;font-weight:850;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ca-btn-link{display:inline-flex;align-items:center;min-height:44px;padding:10px 16px;border-radius:13px;border:1px solid var(--ca-line-strong);background:#0f1918;color:var(--ca-text)!important;font-size:14px;font-weight:700;text-decoration:none!important}
+.ca-btn-link:hover{border-color:var(--ca-accent)}
+#walletHistory{display:grid;gap:8px}
+#walletHistory article{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1px solid var(--ca-line);background:#0b1211}
+#walletHistory article strong{font-variant-numeric:tabular-nums}
+#walletHistory article p{margin:4px 0 0;font-size:12.5px;color:var(--ca-muted)}
+#walletHistory article .ca-in{color:#7ee8c0}#walletHistory article .ca-out{color:#f4a9a0}
+#walletHistory>p{margin:0;padding:20px;border:1px dashed var(--ca-line-strong);border-radius:16px;text-align:center;color:var(--ca-muted);font-size:14px}
 
 /* tablet */
 @media(max-width:1100px){.ca-welcome{grid-template-columns:1fr}#clientKpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
@@ -183,11 +209,15 @@ body.ca-signed-in .ca-topline{display:none}
  #clientNav button{flex:1 1 0;min-width:0;flex-direction:column;gap:4px;min-height:56px;padding:6px 2px;font-size:10.5px;justify-content:center;border-radius:12px;white-space:normal;line-height:1.15;text-align:center}
  .ca-appbar .ca-brand{display:flex}
  .ca-appbar .ca-brand span{display:none}
- .ca-user{display:none}
+ .ca-user{display:flex;flex:1;min-width:0}
+ .ca-avatar,.ca-user small{display:none}
+ #greeting{font-size:14px}
  .ca-content{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
  .ca-split{grid-template-columns:1fr}
 }
 @media(max-width:640px){
+ .ca-types{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none}
+ .ut-client .ca-types button{flex:1 0 auto;padding:8px 12px}
  .ca-topline,.ca-auth{width:calc(100% - 32px)}
  .ca-topline{min-height:64px}
  .ca-brand small{display:none}
@@ -289,7 +319,7 @@ body.ca-signed-in .ca-topline{display:none}
 
     <section data-client-panel="place">
      <div class="ca-page-head"><div><h2>Novo pedido</h2><p>Escolha um serviço para abrir a tela de pedido. Nenhuma cobrança é realizada nesta etapa: o pedido é salvo como rascunho seguro.</p></div></div>
-     <div class="ca-panel"><div class="ca-search"><label>Pesquisar no catálogo oficial<input id="catalogSearch" type="search" placeholder="Ex.: Samsung FRP, iPhone, Xiaomi"></label></div><div id="catalogResults" aria-live="polite"></div></div>
+     <div class="ca-panel"><div class="ca-search"><label>Pesquisar no catálogo oficial<input id="catalogSearch" type="search" placeholder="Ex.: Samsung FRP, iPhone, Xiaomi"></label></div><div class="ca-types" id="catalogTypes" role="group" aria-label="Tipo de serviço"><button type="button" data-main="" aria-pressed="true">Todos</button><button type="button" data-main="IMEI" aria-pressed="false">IMEI</button><button type="button" data-main="SERVER" aria-pressed="false">Servidor</button><button type="button" data-main="REMOTE" aria-pressed="false">Remoto</button><button type="button" data-main="OTHER" aria-pressed="false">Outros</button></div><div class="ca-cats" id="catalogCategories" role="group" aria-label="Categorias"></div><div class="ca-filterbar"><span id="catalogFilterInfo"></span><button type="button" id="catalogClear" class="ca-link" hidden>Limpar filtros</button></div><div id="catalogResults" aria-live="polite"></div></div>
      <div class="ca-panel"><h3>Rascunhos</h3><div id="drafts"></div></div>
     </section>
 
@@ -310,7 +340,7 @@ body.ca-signed-in .ca-topline{display:none}
 
     <section data-client-panel="wallet">
      <div class="ca-page-head"><div><h2>Carteira</h2><p>Saldo e movimentações da sua conta.</p></div></div>
-     <div class="ca-panel"><p id="walletNotice">Recargas e pagamentos não estão disponíveis nesta fase. Nenhuma cobrança será realizada.</p><div id="walletHistory"></div></div>
+     <div class="ca-panel"><div class="ca-wallet-top"><div><span class="ca-label">Saldo disponível</span><strong id="walletPanelBalance">R$ 0,00</strong></div><a class="ca-btn-link" href="/client/wallet">Abrir carteira completa →</a></div><p id="walletNotice">Recargas e pagamentos não estão disponíveis nesta fase. Nenhuma cobrança será realizada.</p></div><div class="ca-panel"><h3>Movimentações</h3><div id="walletHistory" aria-live="polite"><p>Carregando…</p></div></div>
     </section>
 
     <section data-client-panel="support">
@@ -323,7 +353,7 @@ body.ca-signed-in .ca-topline{display:none}
 
     <section data-client-panel="profile">
      <div class="ca-page-head"><div><h2>Meu perfil e segurança</h2><p>Dados da conta e acesso.</p></div></div>
-     <div class="ca-panel"><div id="profileInfo"></div><p class="muted">Para redefinir a senha, use a recuperação por e-mail.</p><a href="/client/?view=forgot">Recuperar senha</a></div>
+     <div class="ca-panel"><dl id="profileInfo" class="ca-dl"></dl></div><div class="ca-panel"><h3>Acesso e segurança</h3><p class="muted">Para redefinir a senha, use a recuperação por e-mail.</p><div class="ca-links-row"><a href="/client/?view=forgot">Redefinir senha</a><a href="/client/wallet">Carteira</a><a href="/terms.html">Termos de Serviço</a><a href="/privacy.html">Privacidade</a></div></div>
     </section>
    </div>
   </div>
