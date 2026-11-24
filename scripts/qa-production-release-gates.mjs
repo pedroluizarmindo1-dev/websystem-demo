@@ -10,7 +10,7 @@ assert.match(server,/origin!==process\.env\.APP_ORIGIN/);
 assert.match(deploy,/DEPLOY_BACKUP_OK/);
 assert.match(deploy,/DEPLOY_ARCHIVE_VALIDATED/);
 assert.match(deploy,/rsync -a --checksum/);
-assert.match(workflow,/github\.event_name == 'workflow_dispatch' && inputs\.deploy == true/);
+assert.match(workflow,/if:\s*github\.event_name == 'workflow_dispatch' && inputs\.deploy == true && github\.ref == 'refs\/heads\/release\/client-build-2026-11-10'/);
 assert.match(workflow,/environment: production/);
 assert.match(workflow,/node scripts\/qa-production-release-gates\.mjs/);
 assert.match(deploy,/DEPLOY_PUBLIC_HEALTH_OK/);
