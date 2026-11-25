@@ -1,9 +1,12 @@
 import puppeteer from 'puppeteer-core';
 
-const base=(process.env.WEB_INSPECT_URL||'https://unlockertools.tech').replace(/\/$/,'');
+const base=(process.env.WEB_INSPECT_URL||'https://unlockertools.tech').replace(/\\/$/,'');
 const chrome=process.env.CHROME_PATH||'/usr/bin/google-chrome';
 const failures=[];
 const check=(condition,message)=>{console.log((condition?'PASS':'FAIL')+' '+message);if(!condition)failures.push(message)};
+// Unauthenticated public probes may be stopped by the Admin IP Gate (404/503)
+// before reaching session auth (401); a role denial may return 403.
+const isProtectedStatus=status=>[401,403,404,503].includes(status);
 const browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{
   // Production admin UI is intentionally restricted to allowlisted IPs.
@@ -27,11 +30,11 @@ try{
   const health=await fetch(base+'/api/health');
   check(health.ok&&((await health.json()).ok===true),'API health');
   const privateResponse=await fetch(base+'/api/orders');
-  check(privateResponse.status===401,'API privada bloqueada sem login');
+  check(isProtectedStatus(privateResponse.status),`API privada protegida · HTTP ${privateResponse.status}`);
   const supplier=await fetch(base+'/api/integrations/imeive/status');
-  check(supplier.status===401,'Fornecedor protegido sem login');
+  check(isProtectedStatus(supplier.status),`Fornecedor protegido · HTTP ${supplier.status}`);
   const readiness=await fetch(base+'/api/readiness');
-  check(readiness.status===401,'Diagnóstico de produção protegido sem login');
+  check(isProtectedStatus(readiness.status),`Diagnóstico de produção protegido · HTTP ${readiness.status}`);
   const publicPage=await browser.newPage();
   await publicPage.setViewport({width:390,height:844});
   const publicErrors=[];publicPage.on('pageerror',e=>publicErrors.push(e.message));
