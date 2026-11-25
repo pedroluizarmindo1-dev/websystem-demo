@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer-core';
 
-const base=(process.env.WEB_INSPECT_URL||'https://unlockertools.tech').replace(/\\/$/,'');
+const base=(process.env.WEB_INSPECT_URL||'https://unlockertools.tech').replace(/\/$/,'');
 const chrome=process.env.CHROME_PATH||'/usr/bin/google-chrome';
 const failures=[];
 const check=(condition,message)=>{console.log((condition?'PASS':'FAIL')+' '+message);if(!condition)failures.push(message)};
