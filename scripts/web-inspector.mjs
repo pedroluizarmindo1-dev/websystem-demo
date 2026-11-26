@@ -1,16 +1,14 @@
 import puppeteer from 'puppeteer-core';
+import {isAdminIpGateStatus} from './web-inspector-status.mjs';
 
 const base=(process.env.WEB_INSPECT_URL||'https://unlockertools.tech').replace(/\/$/,'');
 const chrome=process.env.CHROME_PATH||'/usr/bin/google-chrome';
 const failures=[];
 const check=(condition,message)=>{console.log((condition?'PASS':'FAIL')+' '+message);if(!condition)failures.push(message)};
-// Unauthenticated public probes may be stopped by the Admin IP Gate (404/503)
-// before reaching session auth (401); a role denial may return 403.
-const isProtectedStatus=status=>[401,403,404,503].includes(status);
 const browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{
-  // Production admin UI is intentionally restricted to allowlisted IPs.
-  // Inspect public pages remotely; admin UI has dedicated isolated authenticated QA.
+  // Public runners are outside ADMIN_ALLOWED_IPS. Require the IP gate itself,
+  // not merely the later session/role guard, to block these admin-only routes.
   for(const width of [390,1280]){
     const page=await browser.newPage();
     await page.setViewport({width,height:850,deviceScaleFactor:1});
@@ -24,17 +22,17 @@ try{
     await page.close();
   }
   const admin=await fetch(base+'/admin/',{redirect:'manual'});
-  check([403,404,503].includes(admin.status),'Admin page restricted from public runner');
+  check(isAdminIpGateStatus(admin.status),`Admin page blocked by IP gate · HTTP ${admin.status}`);
   const auth=await fetch(base+'/api/auth/me');
-  check([403,404,503].includes(auth.status),'Admin authentication restricted from public runner');
+  check(isAdminIpGateStatus(auth.status),`Admin authentication blocked by IP gate · HTTP ${auth.status}`);
   const health=await fetch(base+'/api/health');
   check(health.ok&&((await health.json()).ok===true),'API health');
   const privateResponse=await fetch(base+'/api/orders');
-  check(isProtectedStatus(privateResponse.status),`API privada protegida · HTTP ${privateResponse.status}`);
+  check(isAdminIpGateStatus(privateResponse.status),`Orders API blocked by IP gate · HTTP ${privateResponse.status}`);
   const supplier=await fetch(base+'/api/integrations/imeive/status');
-  check(isProtectedStatus(supplier.status),`Fornecedor protegido · HTTP ${supplier.status}`);
+  check(isAdminIpGateStatus(supplier.status),`Supplier status blocked by IP gate · HTTP ${supplier.status}`);
   const readiness=await fetch(base+'/api/readiness');
-  check(isProtectedStatus(readiness.status),`Diagnóstico de produção protegido · HTTP ${readiness.status}`);
+  check(isAdminIpGateStatus(readiness.status),`Readiness blocked by IP gate · HTTP ${readiness.status}`);
   const publicPage=await browser.newPage();
   await publicPage.setViewport({width:390,height:844});
   const publicErrors=[];publicPage.on('pageerror',e=>publicErrors.push(e.message));
