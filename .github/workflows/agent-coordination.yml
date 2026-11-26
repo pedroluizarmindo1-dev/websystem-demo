@@ -21,5 +21,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           INTEGRATION_BRANCH: release/client-build-2026-11-10
         run: node scripts/qa-agent-coordination.mjs
+      - name: Test Web Inspector Admin IP Gate status contract
+        run: node scripts/qa-web-inspector-status.mjs
       - name: Validate Web Inspector syntax
         run: node --check scripts/web-inspector.mjs
