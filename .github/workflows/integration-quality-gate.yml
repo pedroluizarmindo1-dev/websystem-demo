@@ -46,6 +46,8 @@ jobs:
         run: node scripts/qa-home-ui.mjs
       - name: Client area UI (headless Chrome)
         run: node scripts/qa-client-area-ui.mjs
+      - name: Client area translation en/es (headless Chrome)
+        run: node scripts/qa-client-i18n-ui.mjs
       - name: Public layout audit (headless Chrome)
         run: node scripts/qa-layout-audit.mjs
       - name: Smoke
