@@ -60,3 +60,5 @@ jobs:
         run: node scripts/qa-proxy-trust-isolated.mjs
       - name: DHRU reseller API balance isolation and idempotency
         run: node scripts/qa-dhru-idempotency.mjs
+      - name: Dismiss production deploy outside the release ref
+        run: node scripts/qa-production-release-gates.mjs
