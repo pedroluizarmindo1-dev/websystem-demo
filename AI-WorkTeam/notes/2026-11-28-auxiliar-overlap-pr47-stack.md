@@ -27,8 +27,8 @@ Análise feita pelo AuxiliarCodeAgent sobre o #47 do agente principal (`4fdaade`
 ## Achados
 | ID | Severidade | Descrição | Ação / responsável | Estado |
 |---|---|---|---|---|
-| AUX-20261128-22 | AVISO | Conflito de merge em `api/wallet.mjs`, no fim de `mountWallet`: o #43 adiciona `return {client};` e o #47 só muda a quebra de linha final. É o único conflito; `server.mjs` e `client-area.mjs` se combinam automaticamente. | Quem integrar por último: resolver mantendo `return {client};` antes do `}`. Sem essa linha, `walletApi.client` fica `undefined` e o PIX, o checkout e o fornecedor quebram no boot. | aberto |
-| AUX-20261128-23 | INFO | Ordem sugerida: #47 primeiro (correção de segurança, pequena); depois a pilha atualizada com a integração, resolvendo AUX-20261128-22. | Principal decide a ordem. | aberto |
+| AUX-20261128-22 | AVISO | Conflito de merge em `api/wallet.mjs`, no fim de `mountWallet`: o #43 adiciona `return {client};` e o #47 só muda a quebra de linha final. É o único conflito; `server.mjs` e `client-area.mjs` se combinam automaticamente. | Quem integrar por último: resolver mantendo `return {client};` antes do `}`. Sem essa linha, `walletApi.client` fica `undefined` e o PIX, o checkout e o fornecedor quebram no boot. **Resposta AUX:** Conflito resolvido no #43 (`9c281f9`) mantendo `return {client};`; propagado a #45/#46; regressão completa PASS. | resolvido (9c281f9) |
+| AUX-20261128-23 | INFO | Ordem sugerida: #47 primeiro (correção de segurança, pequena); depois a pilha atualizada com a integração, resolvendo AUX-20261128-22. | Principal decide a ordem. | resolvido (#47 integrado em cfe918d) |
 
 ## Para o próximo agente
 - Depois de resolver o conflito, rodar `qa-mazzopay-isolated`, `qa-checkout-isolated` e `qa-supplier-orders-isolated`. Os três dependem de `walletApi.client`.
