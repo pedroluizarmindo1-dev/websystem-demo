@@ -1,6 +1,7 @@
 // Admin "Operações" page: UI for the read-only /api/admin/ops endpoints (see docs/admin-ops-api.md).
 // Self-contained on purpose: src/main.jsx only imports it, shows one admin-only navigation button and renders the page.
-// Nothing here changes orders: status changes stay in the existing order table ("Meus Pedidos").
+// Status changes stay in the existing order table ("Meus Pedidos"); the only write action here is the supervised
+// supplier submission tab ("Fornecedor"), where an administrator approves each order (api/supplier-orders.mjs).
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {BarChart3,ClipboardList,Clock,Download,Inbox,RefreshCw,Wallet} from 'lucide-react';
 import './admin-ops.css';
@@ -10,7 +11,9 @@ const STATUS_LABELS={pendente:'Pendente',em_processamento:'Em andamento',conclui
 const PAYMENT_LABELS={pendente:'Pendente',pago:'Pago',reembolsado:'Reembolsado'};
 const KIND_LABELS={imei:'IMEI',server:'Server',api:'API',legacy:'Legado'};
 const SORT_LABELS={id_desc:'Mais recentes',id_asc:'Mais antigas',updated_desc:'Última atualização',price_desc:'Maior valor'};
-const TABS=[['resumo','Resumo'],['os','O.S.'],['rascunhos','Rascunhos'],['auditoria','Auditoria']];
+const TABS=[['resumo','Resumo'],['os','O.S.'],['rascunhos','Rascunhos'],['fornecedor','Fornecedor'],['auditoria','Auditoria']];
+const SUBMISSION_LABELS={enviando:'Enviando',enviado:'Enviado',concluido:'Concluído',rejeitado:'Rejeitado pelo fornecedor',falhou:'Recusado (não enviado)',incerto:'Incerto — conferir'};
+const SUPPLIER_FILTERS=[['aguardando','Aguardando aprovação'],['enviados','Enviados'],['incertos','Incertos'],['concluidos','Finalizados'],['todos','Todos']];
 const ORDER_FILTERS={q:'',status:'',payment_status:'',from:'',to:'',sort:'id_desc'};
 const AUDIT_FILTERS={entity:'',action:'',entity_id:'',q:'',from:'',to:''};
 
@@ -218,7 +221,47 @@ function Audit({active}){
  </div>;
 }
 
-const PANELS={resumo:Summary,os:Orders,rascunhos:Drafts,auditoria:Audit};
+// Supervised supplier submission: nothing is sent without an explicit approval here.
+async function supplierCall(path,{method='GET',body}={}){
+ const r=await fetch('/api/admin/supplier'+path,{method,headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
+ const d=await r.json().catch(()=>null);
+ if(!r.ok&&r.status!==202&&r.status!==422)throw Error(d?.error||(r.status===401?'Sessão expirada. Entre novamente.':'Falha ('+r.status+')'));
+ return d;
+}
+function Supplier({active}){
+ const [filter,setFilter]=useState('aguardando'),[data,setData]=useState(null),[status,setStatus]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState('');
+ const [confirm,setConfirm]=useState(null),[busy,setBusy]=useState(0),[note,setNote]=useState(''),[refs,setRefs]=useState({});
+ const load=useCallback(async()=>{setLoading(true);setError('');try{const [q,st]=await Promise.all([supplierCall('/queue?filter='+filter),supplierCall('/status')]);setData(q);setStatus(st)}catch(e){setError(e.message)}finally{setLoading(false)}},[filter]);
+ useEffect(()=>{if(active)load()},[active,load]);
+ const act=async(id,path,body,okMsg)=>{setBusy(id);setError('');setNote('');try{const r=await supplierCall('/orders/'+id+path,{method:'POST',body:body||{}});setNote(okMsg(r));setConfirm(null);await load()}catch(e){setError(e.message)}finally{setBusy(0)}};
+ const items=data?.items||[];
+ return <div className="panel">
+  <div className="panelhead"><div><h2>Envio ao fornecedor</h2><p>Pedidos pagos com saldo. Nada é enviado sem aprovação: revise os dados e confirme. Envios "incertos" nunca são repetidos automaticamente — confira no painel do fornecedor e resolva aqui.</p></div><span className="count">{(status?.awaiting??0)+' aguardando'}</span></div>
+  {status&&!status.enabled&&<p className="opsHint opsPad" data-supplier="disabled">Envio desativado{status.configured?' (SUPPLIER_ORDERS_ENABLED=false)':' (credenciais do fornecedor não configuradas)'}. A fila pode ser revisada, mas o envio fica bloqueado.</p>}
+  <div className="quickChips opsChips">{SUPPLIER_FILTERS.map(([k,t])=><button type="button" key={k} data-filter={k} aria-pressed={filter===k} className={filter===k?'selected':''} onClick={()=>setFilter(k)}>{t}{k==='incertos'&&status?.counts?.incerto?' ('+status.counts.incerto+')':''}</button>)}
+   <button type="button" className="outline" onClick={load} disabled={loading}><RefreshCw size={14}/> Atualizar</button></div>
+  <ErrorLine text={error}/>{note&&<p className="opsHint opsPad" role="status" data-supplier-note>{note}</p>}
+  <div className="tablewrap"><table><thead><tr><th>O.S.</th><th>Cliente</th><th>Serviço</th><th>Identificador e campos</th><th className="opsNumber">Valor</th><th>Envio</th><th>Ação</th></tr></thead>
+  <tbody>{items.map(o=>{const s=o.submission;return <tr key={o.order_id} data-order={o.order_id}>
+   <td>{osNumber(o.order_id)}<small>{minute(o.created_at)}</small></td>
+   <td><strong>{o.client.name}</strong>{o.client.contact&&<small>{o.client.contact}</small>}</td>
+   <td>{o.service.name}<small>{'ID fornecedor '+(o.service.supplier_id||'—')+' · custo US$ '+Number(o.service.supplier_price_usd||0).toFixed(2)}</small></td>
+   <td className="opsWrap"><strong>{o.identifier}</strong>{Object.entries(o.fields).filter(([k])=>k!=='IMEI').map(([k,v])=><small key={k}>{k+': '+v}</small>)}</td>
+   <td className="opsNumber">{money(o.price_brl)}</td>
+   <td>{s?<><span className={'status'+(['falhou','incerto','rejeitado'].includes(s.status)?' muted':'')} data-submission-status={s.status}>{human(SUBMISSION_LABELS,s.status)}</span>{s.reference_id&&<small>{'Ref. '+s.reference_id}</small>}{s.error&&<small>{s.error}</small>}</>:<span className="status muted">Não enviado</span>}</td>
+   <td className="opsActionsCell">
+    {o.can_submit&&(confirm===o.order_id?<div className="opsConfirm"><small>{'Enviar '+o.service.name+' para '+o.identifier+'?'}</small><button type="button" className="primary" data-confirm-submit={o.order_id} disabled={busy===o.order_id||!data?.enabled} onClick={()=>act(o.order_id,'/submit',{confirm_order_id:o.order_id},r=>r.submission?.status==='enviado'?'Pedido '+osNumber(o.order_id)+' aceito pelo fornecedor (ref. '+r.submission.reference_id+').':r.submission?.status==='falhou'?'Fornecedor recusou: '+r.submission.error:'Resposta incerta: confira no painel do fornecedor antes de qualquer nova ação.')}>{busy===o.order_id?'Enviando...':'Confirmar envio'}</button><button type="button" className="outline" onClick={()=>setConfirm(null)}>Cancelar</button></div>
+     :<button type="button" className="primary" data-submit={o.order_id} disabled={!data?.enabled} onClick={()=>setConfirm(o.order_id)}>Revisar e enviar</button>)}
+    {s?.status==='enviado'&&<button type="button" className="outline" data-refresh={o.order_id} disabled={busy===o.order_id} onClick={()=>act(o.order_id,'/refresh',null,r=>'Status: '+human(SUBMISSION_LABELS,r.submission?.status))}>Atualizar status</button>}
+    {s?.status==='incerto'&&<div className="opsConfirm"><input aria-label="REFERENCEID no fornecedor" placeholder="REFERENCEID no fornecedor" value={refs[o.order_id]||''} onChange={e=>setRefs({...refs,[o.order_id]:e.target.value})} maxLength={64}/><button type="button" className="outline" data-resolve-sent={o.order_id} onClick={()=>act(o.order_id,'/resolve',{outcome:'sent',reference_id:refs[o.order_id]||''},()=>'Marcado como enviado.')}>Consta no fornecedor</button><button type="button" className="outline" data-resolve-not-sent={o.order_id} onClick={()=>act(o.order_id,'/resolve',{outcome:'not_sent'},()=>'Marcado como não enviado; pode ser reenviado.')}>Não consta</button></div>}
+    {s?.result_code&&<small className="opsWrap">{'Resultado: '+s.result_code}</small>}
+   </td></tr>})}</tbody></table>
+  {data&&!items.length&&<div className="empty"><p>Nenhum pedido nesta lista.</p></div>}
+  {!data&&loading&&<p className="opsHint opsPad">Carregando...</p>}</div>
+ </div>;
+}
+
+const PANELS={resumo:Summary,os:Orders,rascunhos:Drafts,fornecedor:Supplier,auditoria:Audit};
 // Tabs stay mounted once opened (filters are kept) and refresh their data every time they become visible again.
 export default function AdminOps(){
  const [tab,setTab]=useState('resumo'),[opened,setOpened]=useState({resumo:true});

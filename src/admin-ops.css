@@ -39,3 +39,8 @@
  .opsBars{height:110px;padding:14px 13px 0}
  .opsBarsAxis{padding:8px 13px 14px}
 }
+
+.opsActionsCell{min-width:210px}
+.opsConfirm{display:grid;gap:6px;max-width:260px}
+.opsConfirm input{min-height:38px}
+.opsActionsCell>button+button{margin-top:6px}

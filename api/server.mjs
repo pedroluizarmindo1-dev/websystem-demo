@@ -9,6 +9,7 @@ import {mountClientArea} from './client-area.mjs';
 import {mountWallet} from './wallet.mjs';
 import {mountMazzoPay} from './mazzopay.mjs';
 import {mountCheckout,refundOrderCharge} from './checkout.mjs';
+import {mountSupplierOrders} from './supplier-orders.mjs';
 import {mountAdminOps} from './admin-ops.mjs';
 import {getAnnouncements} from './telegram-announcements.mjs';
 import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
@@ -100,6 +101,8 @@ mountAdminOps(app,db);
 const walletApi=mountWallet(app,db,{adminGuard:guard});
 mazzoWebhook=mountMazzoPay(app,db,{client:walletApi.client,adminGuard:guard}).webhook;
 mountCheckout(app,db,{client:walletApi.client,audit:(...args)=>audit(...args)}); // audit is defined further down; called only at request time
+const supplierOrders=mountSupplierOrders(app,db,{audit:(...args)=>audit(...args)}); // supervised submission: admin approval only
+app.get('/api/client/checkout/orders/:id/result',walletApi.client,(req,res)=>{const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({error:'Pedido inválido'});const r=supplierOrders.resultFor(req.walletClient.id,id);if(!r)return res.status(404).json({error:'Resultado ainda não disponível'});res.json({status:r.status,result:r.status==='concluido'?r.result_code:null,completed_at:r.completed_at})});
 mountCommerce(app,db,{adminGuard:adminOnly,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
 const publicLookupAttempts=new Map();

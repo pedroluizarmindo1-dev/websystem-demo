@@ -11,7 +11,7 @@ Módulo: `api/checkout.mjs`. Tela: Área do Cliente → Novo pedido → Rascunho
    grava histórico de status e auditoria, registra a cobrança em `wallet_order_charges` e marca o rascunho como convertido
    (`client_checkouts`, `UNIQUE(draft_id)`).
 4. Repetições (mesma chave, chave nova ou cliques simultâneos) devolvem o mesmo pedido, sem segundo débito.
-5. O pedido é processado pela equipe (não há envio automático ao fornecedor nesta etapa).
+5. O envio ao fornecedor é supervisionado: um admin aprova cada pedido no painel (ver `docs/supplier-orders.md`).
 6. Quando o admin muda o pedido para **rejeitado** ou **reembolsado**, o valor volta para a carteira uma única vez e o pagamento fica `reembolsado`.
 7. O extrato do cliente mostra recargas, pagamentos de pedidos e estornos.
 
@@ -26,4 +26,4 @@ Módulo: `api/checkout.mjs`. Tela: Área do Cliente → Novo pedido → Rascunho
 ## Limites desta etapa
 - Só serviços do catálogo do fornecedor (IMEIve) com preço publicado podem ser pagos; os demais continuam "preço sob consulta".
 - Rascunhos antigos, sem `service_id`, precisam ser recriados pelo catálogo.
-- Envio automático ao fornecedor (com idempotência, retries e reconciliação) fica para a próxima etapa.
+- Não há envio automático ao fornecedor: cada envio depende de aprovação no painel admin.

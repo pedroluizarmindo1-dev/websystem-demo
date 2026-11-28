@@ -52,6 +52,8 @@ jobs:
         run: node scripts/qa-mazzopay-isolated.mjs
       - name: Pay order drafts with the wallet (fictitious data)
         run: node scripts/qa-checkout-isolated.mjs
+      - name: Supervised supplier submission (DHRU simulator, no real orders)
+        run: node scripts/qa-supplier-orders-isolated.mjs
       - name: robots.txt, sitemap and canonical host
         run: node scripts/qa-seo-isolated.mjs
       - name: Smoke
