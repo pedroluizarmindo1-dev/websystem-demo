@@ -80,6 +80,35 @@ try{
   check(!problems.length,locale+': no JS errors '+problems.join(' | '));
   await ctx.close();
  }
+
+ // Hardening: prototype names are plain text, and [data-no-translate] protects text and attributes of the whole subtree,
+ // including content and attributes changed after load. Checked in every locale (pt-BR included).
+ for(const [locale,okText] of [['en','Select service'],['es','Seleccionar servicio'],['pt-BR','Selecionar serviço']]){
+  const ctx=await browser.createBrowserContext();const page=await ctx.newPage();page.setDefaultTimeout(15000);const problems=[];
+  page.on('pageerror',e=>problems.push(e.message));
+  await page.evaluateOnNewDocument(l=>{try{localStorage.setItem('ut_locale',l)}catch{}},locale);
+  await page.goto(base+'/client/',{waitUntil:'networkidle0'});
+  const r=await page.evaluate(async()=>{
+   const pause=()=>new Promise(res=>setTimeout(res,60)),g=id=>document.getElementById(id),mk=(tag,attrs,text)=>{const e=document.createElement(tag);for(const [k,v] of Object.entries(attrs))e.setAttribute(k,v);if(text)e.textContent=text;return e};
+   const box=mk('div',{id:'i18nProbe'});
+   for(const [id,t] of [['p1','constructor'],['p2','toString'],['p3','__proto__'],['p4','hasOwnProperty'],['p6','valueOf: x']])box.append(mk('span',{id},t));
+   box.append(mk('input',{id:'p5',placeholder:'toString','aria-label':'constructor'}));
+   const guard=mk('div',{id:'guard','data-no-translate':''});const inner=mk('section',{});
+   inner.append(mk('span',{id:'g1'},'Selecionar serviço'),mk('input',{id:'g2',placeholder:'Buscar por número ou modelo','aria-label':'Selecionar serviço'}));
+   guard.append(inner);box.append(guard,mk('span',{id:'ok1'},'Selecionar serviço'));document.body.append(box);await pause();
+   g('g2').setAttribute('title','Selecionar serviço');g('g2').setAttribute('placeholder','Carregar mais serviços');
+   inner.append(mk('input',{id:'g3',placeholder:'Buscar por número ou modelo'}));g('g1').firstChild.nodeValue='Carregar mais serviços';await pause();
+   return {proto:['p1','p2','p3','p4','p6'].map(id=>g(id).textContent).concat(g('p5').placeholder,g('p5').getAttribute('aria-label')),
+    guard:[g('g1').textContent,g('g2').placeholder,g('g2').getAttribute('aria-label'),g('g2').title,g('g3').placeholder],ok:g('ok1').textContent,
+    utT:[typeof window.utT('constructor'),window.utT('toString'),window.utT('__proto__')]};
+  });
+  check(JSON.stringify(r.proto)===JSON.stringify(['constructor','toString','__proto__','hasOwnProperty','valueOf: x','toString','constructor']),locale+': prototype names stay plain text '+JSON.stringify(r.proto));
+  check(JSON.stringify(r.guard)===JSON.stringify(['Carregar mais serviços','Carregar mais serviços','Selecionar serviço','Selecionar serviço','Buscar por número ou modelo']),locale+': [data-no-translate] subtree untouched, including later mutations '+JSON.stringify(r.guard));
+  check(r.ok===okText,locale+': text outside the protected subtree follows the locale ('+r.ok+')');
+  check(JSON.stringify(r.utT)===JSON.stringify(['string','toString','__proto__']),locale+': utT returns strings for prototype names');
+  check(!problems.length,locale+': no JS errors in hardening probe '+problems.join(' | '));
+  await ctx.close();
+ }
  // pt-BR stays as written
  {const ctx=await browser.createBrowserContext();const page=await ctx.newPage();page.setDefaultTimeout(15000);
   await page.evaluateOnNewDocument(()=>{try{localStorage.setItem('ut_locale','pt-BR')}catch{}});
@@ -87,7 +116,7 @@ try{
   await page.waitForFunction(()=>document.body.classList.contains('ca-signed-in'));await page.waitForNetworkIdle();
   const greet=await page.$eval('#greeting',e=>e.textContent);check(greet.startsWith('Olá, Cliente QA · Cliente #'),'pt-BR: greeting untouched "'+greet+'"');
   await ctx.close()}
- console.log('CLIENT_I18N_PASS: en and es leave no known Portuguese strings (text and attributes) on login, dashboard, orders, catalog, order form, wallet, support and profile; composites and labels translated; pt-BR untouched');
+ console.log('CLIENT_I18N_PASS: en and es leave no known Portuguese strings (text and attributes) on login, dashboard, orders, catalog, order form, wallet, support and profile; composites and labels translated; pt-BR untouched; prototype names inert; [data-no-translate] respected for text, attributes and mutations');
 }finally{
  if(browser)await browser.close().catch(()=>{});
  if(child){child.kill('SIGTERM');await delay(150)}

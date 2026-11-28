@@ -32,6 +32,8 @@ deploy: não publicado
 | AUX-20261128-29 | INFO | `<option>` sem atributo `value` não é traduzido, porque o texto vira o valor enviado. Com `value`, é traduzido. | Ao criar selects, sempre definir `value`. | aceito |
 | AUX-20261128-30 | INFO | Ficam em pt, de propósito: dados cadastrados (nomes e categorias de serviço), o nome do idioma "Português", mensagens de erro vindas da API e o texto pré-preenchido do WhatsApp para o suporte. | Traduzir mensagens da API exige tarefa no backend. | aceito |
 | AUX-20261128-31 | INFO | Plural: "1 orders" e "1 pedidos" refletem o texto original em pt ("1 pedidos"). | Corrigir na origem (`cliente.js`) numa tarefa futura. | aberto |
+| PRI-20261128-3 | ERRO | (Revisão do Principal no #51) A busca `dictionary[text]` resolvia nomes do protótipo: em pt-BR, um texto "toString" virava "[object Undefined]" e um placeholder virava código-fonte de função. Isso também afetava a função original `translate()`. | Corrigido: `Object.setPrototypeOf(dictionary,null)` e `Object.hasOwn` em todas as buscas (`own()`), nos dois caminhos. Regressão vermelha antes da correção e verde depois. | resolvido |
+| PRI-20261128-4 | ERRO | (Revisão do Principal no #51) Os atributos `placeholder`, `aria-label` e `title` dentro de `[data-no-translate]` eram traduzidos, nos descendentes e em mutações posteriores. | Corrigido: `attrs()` sai se `el.closest('[data-no-translate]')`. Regressão cobre descendentes, atributo alterado e nó inserido depois do carregamento, em en, es e pt-BR. | resolvido |
 | AUX-20261128-32 | AVISO | Ao adicionar texto novo na Área do Cliente, inclua a tradução em `more.en` e `more.es`. O teste falha só para frases já conhecidas; o relatório "report-only" lista suspeitas. | Todos os agentes. | aceito |
 
 ## Testes
@@ -40,6 +42,9 @@ deploy: não publicado
   - pt-BR intacto;
   - sem erros de JS.
 - Regressão na combinação — PASS: `qa-client-area-ui`, `qa-home-ui`, `qa-public-pages`, `qa-layout-audit`, `qa-mazzopay-isolated`, `qa-checkout-isolated`, `qa-supplier-orders-isolated`, `qa-admin-ops-ui`, `qa-seo-isolated`.
+
+## Testes (rodada 2)
+- `qa-client-i18n-ui` com a sonda de proteção — PASS em #51 isolado e no candidato final (pilha + #51). `qa-client-area-ui`, `qa-home-ui`, `qa-public-pages`, `qa-layout-audit`, `qa-admin-ops-ui`, `qa-mazzopay-isolated`, `qa-checkout-isolated` e `qa-supplier-orders-isolated` — PASS.
 
 ## Para o próximo agente
 - O merge com a pilha #43 → #45 → #46 e com o #47 é automático, sem conflito (verificado com `git merge-tree`). O bloco fica depois das linhas de dicionário que a pilha altera.

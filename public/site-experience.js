@@ -29,22 +29,26 @@ const patterns={
  en:[[/^Olá, (.+)$/,'Hi, $1'],[/^Cliente #(\d+)$/,'Client #$1'],[/^Exibindo (\d+) de (\d+) serviços$/,'Showing $1 of $2 services'],[/^Exibindo (\d+) de (\d+) registros recentes\.$/,'Showing $1 of $2 recent records.'],[/^(\d+) pedidos$/,'$1 orders'],[/^(\d+) rascunhos$/,'$1 drafts'],[/^(\d+) chamados$/,'$1 tickets'],[/^Aguarde (\d+)s$/,'Wait $1s'],[/^Erro (\d+)$/,'Error $1'],[/^Status alterado para (.+)$/,'Status changed to $1'],[/^Pesquisar (.+)$/,'Search $1'],[/^(\d+)\/16 caracteres — use uma frase longa e única$/,'$1/16 characters — use a long, unique phrase'],[/^Não foi possível confirmar: (.+)\. Solicite outro link abaixo\.$/,'Could not confirm: $1. Request another link below.']],
  es:[[/^Olá, (.+)$/,'Hola, $1'],[/^Cliente #(\d+)$/,'Cliente #$1'],[/^Exibindo (\d+) de (\d+) serviços$/,'Mostrando $1 de $2 servicios'],[/^Exibindo (\d+) de (\d+) registros recentes\.$/,'Mostrando $1 de $2 registros recientes.'],[/^(\d+) pedidos$/,'$1 pedidos'],[/^(\d+) rascunhos$/,'$1 borradores'],[/^(\d+) chamados$/,'$1 tickets'],[/^Aguarde (\d+)s$/,'Espere $1s'],[/^Erro (\d+)$/,'Error $1'],[/^Status alterado para (.+)$/,'Estado cambiado a $1'],[/^Pesquisar (.+)$/,'Buscar $1'],[/^(\d+)\/16 caracteres — use uma frase longa e única$/,'$1/16 caracteres — use una frase larga y única'],[/^Não foi possível confirmar: (.+)\. Solicite outro link abaixo\.$/,'No se pudo confirmar: $1. Solicite otro enlace abajo.']]
 };
-if(!more[locale]){translate(document.body);window.utTranslate=translate;window.utT=text=>dictionary[text]||text}else{
+// Page text is data, not a key path: "constructor", "toString" or "__proto__" must never resolve to Object.prototype.
+Object.setPrototypeOf(dictionary,null);
+const own=key=>typeof key==='string'&&Object.hasOwn(dictionary,key);
+if(!more[locale]){translate(document.body);window.utTranslate=translate;window.utT=text=>own(text)?dictionary[text]:text}else{
  const written=new WeakMap(); // value this script last wrote per node: our own writes must not be translated again
- for(const [k,v] of Object.entries(more[locale]))if(!(k in dictionary))dictionary[k]=v;
+ for(const [k,v] of Object.entries(more[locale]))if(!own(k))dictionary[k]=v;
  const rules=patterns[locale]||[];
  const tx=(text,depth=0)=>{
-  if(dictionary[text])return dictionary[text];
+  if(own(text))return dictionary[text];
   if(depth<2&&text.includes(' · ')){const parts=text.split(' · '),done=parts.map(p=>tx(p,depth+1)??p);return done.some((p,i)=>p!==parts[i])?done.join(' · '):null}
   for(const [re,out] of rules)if(re.test(text))return text.replace(re,out);
   const m=depth<2&&/^([^:·]{2,40}): (.+)$/s.exec(text);
-  if(m&&dictionary[m[1]])return dictionary[m[1]]+': '+(tx(m[2],depth+1)??m[2]);
+  if(m&&own(m[1]))return dictionary[m[1]]+': '+(tx(m[2],depth+1)??m[2]);
   return null;
  };
  const textNode=n=>{const raw=n.nodeValue,t=raw.trim();if(!t||n.parentElement?.closest('script,style,textarea,[data-no-translate]'))return;
   if(n.parentElement?.closest('option:not([value])'))return; // option text doubles as its value: leave it alone
   if(written.get(n)===raw)return;const out=tx(t);if(out!=null&&out!==t){n.nodeValue=raw.replace(t,out);written.set(n,n.nodeValue)}};
- const attrs=el=>{for(const a of ['placeholder','aria-label','title']){const v=el.getAttribute?.(a);if(v&&written.get(el)?.[a]!==v){const out=tx(v.trim());if(out!=null&&out!==v){el.setAttribute(a,out);written.set(el,{...written.get(el),[a]:out})}}}};
+ const attrs=el=>{if(!el.closest||el.closest('[data-no-translate]'))return; // protected subtree, including descendants and later mutations
+ for(const a of ['placeholder','aria-label','title']){const v=el.getAttribute?.(a);if(v&&written.get(el)?.[a]!==v){const out=tx(v.trim());if(out!=null&&out!==v){el.setAttribute(a,out);written.set(el,{...written.get(el),[a]:out})}}}};
  const walk=root=>{if(root.nodeType===3)return textNode(root);if(root.nodeType!==1||root.closest('[data-no-translate]'))return;attrs(root);for(const el of root.querySelectorAll('[placeholder],[aria-label],[title]'))attrs(el);
   const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;while((n=w.nextNode()))textNode(n)};
  walk(document.body);
