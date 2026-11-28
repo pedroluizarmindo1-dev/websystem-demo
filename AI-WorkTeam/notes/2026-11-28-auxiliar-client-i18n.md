@@ -2,10 +2,10 @@
 id: AUX-20261128-client-i18n
 agente: AuxiliarCodeAgent
 data: 2026-11-28
-pr: (ver PR)
+pr: 51
 branch: agent/frontend-client-i18n
 base_sha: ec45b46
-final_sha: (ver PR)
+final_sha: 0ec8d1d (+ este ajuste)
 modulo: frontend
 depende_de: []
 deploy: não publicado
