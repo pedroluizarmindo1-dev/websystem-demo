@@ -8,6 +8,8 @@ import cors from 'cors';
 import {mountCommerce} from './commerce.mjs';
 import {mountClientArea} from './client-area.mjs';
 import {mountWallet} from './wallet.mjs';
+import {mountMazzoPay} from './mazzopay.mjs';
+import {mountCheckout,refundOrderCharge} from './checkout.mjs';
 import {mountAdminOps} from './admin-ops.mjs';
 import {getAnnouncements} from './telegram-announcements.mjs';
 import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
@@ -25,6 +27,8 @@ const adminIpGate=(req,res,next)=>{const allowed=allowedAdminIPs();if(!allowed.l
 // Bounded in-memory rate limit (also enforce at reverse proxy for multi-worker deployments).
 const buckets=new Map();let bucketChecks=0;
 function rateLimit({max,windowMs,keyPrefix}){return(req,res,next)=>{const now=Date.now();if(++bucketChecks%500===0){for(const [k,v] of buckets)if(v.until<=now)buckets.delete(k)}const key=keyPrefix+':'+req.ip;let b=buckets.get(key);if(!b||b.until<=now){b={n:0,until:now+windowMs};buckets.set(key,b)}if(++b.n>max){res.setHeader('Retry-After',String(Math.max(1,Math.ceil((b.until-now)/1000))));return res.status(429).json({error:'Muitas solicitações; tente novamente mais tarde'})}next()}}
+const canonicalHost=(()=>{try{return new URL(process.env.APP_ORIGIN||'').hostname}catch{return ''}})();
+app.use((req,res,next)=>{if(canonicalHost&&!canonicalHost.startsWith('www.')&&req.hostname==='www.'+canonicalHost&&['GET','HEAD'].includes(req.method))return res.redirect(301,process.env.APP_ORIGIN.replace(/\/$/,'')+req.originalUrl);next()});
 app.use('/api',rateLimit({max:240,windowMs:60000,keyPrefix:'api'}));
 app.use('/api/auth/login',adminIpGate,rateLimit({max:10,windowMs:15*60000,keyPrefix:'admin-auth'}));
 app.use('/api/auth/me',adminIpGate);
@@ -32,6 +36,9 @@ app.use('/api/auth/logout',adminIpGate);
 app.use('/api/admin',adminIpGate);
 
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Cross-Origin-Opener-Policy','same-origin');res.setHeader('Cross-Origin-Resource-Policy','same-origin');res.setHeader('Content-Security-Policy',"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'");if(req.secure)res.setHeader('Strict-Transport-Security','max-age=31536000');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');if(req.path.startsWith('/api/')||req.path==='/login'||req.path.startsWith('/client/')||req.path.startsWith('/admin/'))res.setHeader('Cache-Control','no-store');next()});
+// MazzoPay webhooks are verified with HMAC over the raw body, so this route runs before express.json and the Origin check.
+let mazzoWebhook=(req,res)=>res.status(503).json({error:'Webhook PIX não configurado'});
+app.post('/api/webhooks/mazzopay',express.raw({type:()=>true,limit:'256kb'}),(req,res)=>Promise.resolve(mazzoWebhook(req,res)).catch(()=>{if(!res.headersSent)res.status(500).json({error:'Falha interna'})}));
 app.use(express.json({limit:'128kb'}));app.use(cors({origin:false}));
 // Browser session mutations must originate from the configured first-party origin.
 app.use('/api',(req,res,next)=>{
@@ -91,7 +98,9 @@ app.get('/api/readiness',adminOnly,(req,res)=>{const configured=!!(process.env.I
 // Token-protected reseller endpoints are mounted before the browser session guard.
 mountClientArea(app,db,{adminGuard:guard});
 mountAdminOps(app,db);
-mountWallet(app,db,{adminGuard:guard});
+const walletApi=mountWallet(app,db,{adminGuard:guard});
+mazzoWebhook=mountMazzoPay(app,db,{client:walletApi.client,adminGuard:guard}).webhook;
+mountCheckout(app,db,{client:walletApi.client,audit:(...args)=>audit(...args)}); // audit is defined further down; called only at request time
 mountCommerce(app,db,{adminGuard:adminOnly,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
 const publicLookupAttempts=new Map();
@@ -206,7 +215,10 @@ app.patch('/api/orders/:id',adminOnly,wrap((req,res)=>{
   run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,id);
   run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,?,?,?,?)',id,current.status,req.body.status,'admin_status',req.user?.username||null);
   audit('orders',id,'status',req.body.status);
-  db.exec('COMMIT');res.json({ok:true,changed:true});
+  // Orders paid with the client wallet get the amount back once when they are rejected or refunded.
+  const refunded=['rejeitado','reembolsado'].includes(req.body.status)?refundOrderCharge(db,id,req.user?.username||'admin'):0;
+  if(refunded)audit('orders',id,'wallet_refund',String(refunded));
+  db.exec('COMMIT');res.json({ok:true,changed:true,wallet_refund_cents:refunded});
  }catch(e){db.exec('ROLLBACK');throw e}
 }));
 app.get('/api/remote-sessions',adminOnly,wrap((req,res)=>res.json(all('SELECT * FROM remote_sessions ORDER BY id DESC LIMIT 200'))));
@@ -241,6 +253,14 @@ if(existsSync(resolve(dist,'index.html'))){
  app.get(['/admin/users','/admin/services','/admin/orders','/admin/settings','/admin/audit'],adminIpGate,(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'index.html'))});
  app.get('/client',(req,res,next)=>req.path==='/client'?res.redirect(308,'/client/'):next());
  app.get(['/client/','/client/orders','/client/support'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'cliente.html'))});
+ const siteOrigin=()=>String(process.env.APP_ORIGIN||'https://unlockertools.tech').replace(/\/$/,'');
+ app.get('/robots.txt',(req,res)=>{res.type('text/plain').setHeader('Cache-Control','public, max-age=3600');res.send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\nDisallow: /client/\nDisallow: /consulta\n\nSitemap: ${siteOrigin()}/sitemap.xml\n`)});
+ app.get('/sitemap.xml',(req,res)=>{const o=siteOrigin(),esc=v=>String(v).replace(/[<>&'"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+  const pages=['/','/services','/terms.html','/privacy.html','/refunds.html'].map(p=>({loc:o+p}));
+  let services=[];try{services=all("SELECT id FROM services WHERE available=1 OR source='telegram-announcement' ORDER BY id LIMIT 5000").map(r=>({loc:o+'/services/'+r.id}))}catch{}
+  res.type('application/xml').setHeader('Cache-Control','public, max-age=3600');
+  res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+[...pages,...services].map(u=>'<url><loc>'+esc(u.loc)+'</loc></url>').join('\n')+'\n</urlset>\n')});
+ app.get('/favicon.ico',(req,res)=>res.redirect(301,'/unlocker-tools-mark.svg'));
  app.get('/login',(req,res)=>res.redirect(302,'/client/'));
  app.get('/services',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'services.html'))});
  app.get(/^\/services\/\d+\/?$/,(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(resolve(dist,'service-detail.html'))});

@@ -28,7 +28,12 @@ export function mountWallet(app,db,{adminGuard}){
   const account=q('SELECT balance_cents FROM wallet_accounts WHERE client_id=?',id);
   const entries=all(`SELECT l.id AS ledger_id,l.deposit_id,l.delta_cents,l.balance_after_cents,l.created_at,d.method,d.status
    FROM wallet_ledger l JOIN wallet_deposits d ON d.id=l.deposit_id WHERE l.client_id=? ORDER BY l.id DESC LIMIT 100`,id);
-  res.json({currency:'BRL',balance_cents:account?.balance_cents||0,transactions:entries.map(e=>({id:'deposit:'+e.ledger_id,type:'deposit',delta_cents:e.delta_cents,balance_after_cents:e.balance_after_cents,reference_id:e.deposit_id,method:e.method,created_at:e.created_at})),note:'Este extrato inclui somente depósitos aprovados na carteira do cliente. Débitos e reembolsos serão exibidos após integração transacional dos pedidos.'});
+  let orders=[];try{orders=all('SELECT order_id,amount_cents,balance_after_cents,status,refund_balance_after_cents,refunded_at,created_at FROM wallet_order_charges WHERE client_id=? ORDER BY id DESC LIMIT 100',id)}catch{}
+  const tx=[...entries.map(e=>({id:'deposit:'+e.ledger_id,type:'deposit',delta_cents:e.delta_cents,balance_after_cents:e.balance_after_cents,reference_id:e.deposit_id,method:e.method,created_at:e.created_at})),
+   ...orders.map(o=>({id:'order:'+o.order_id,type:'order_payment',delta_cents:-o.amount_cents,balance_after_cents:o.balance_after_cents,reference_id:o.order_id,created_at:o.created_at})),
+   ...orders.filter(o=>o.status==='refunded').map(o=>({id:'refund:'+o.order_id,type:'order_refund',delta_cents:o.amount_cents,balance_after_cents:o.refund_balance_after_cents,reference_id:o.order_id,created_at:o.refunded_at}))]
+   .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))||b.id.localeCompare(a.id)).slice(0,100);
+  res.json({currency:'BRL',balance_cents:account?.balance_cents||0,transactions:tx,note:'Recargas aprovadas, pagamentos de pedidos com saldo e estornos.'});
  });
  clientRouter.post('/deposits',(req,res)=>{
   if(!enabled())return fail(res,503,'Solicitações de recarga desativadas');
@@ -65,6 +70,7 @@ export function mountWallet(app,db,{adminGuard}){
    const d=q('SELECT * FROM wallet_deposits WHERE id=?',id);
    if(!d){db.exec('ROLLBACK');return fail(res,404,'Solicitação não encontrada')}
    if(d.status!=='pending'){db.exec('ROLLBACK');return fail(res,409,'Solicitação já analisada')}
+   if(String(d.reference||'').startsWith('mazzopay:')){db.exec('ROLLBACK');return fail(res,409,'Recarga PIX automática: liquidada somente pela confirmação do provedor')}
    if(decision==='approved'&&!(d.method==='pix_manual'?d.reference:d.tx_hash)){db.exec('ROLLBACK');return fail(res,409,'Comprovante ou transação ausente')}
    const actor=String(req.user.username||'admin').slice(0,100);
    run('UPDATE wallet_deposits SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND status=?',decision,actor,id,'pending');
@@ -80,4 +86,5 @@ export function mountWallet(app,db,{adminGuard}){
   }catch(e){db.exec('ROLLBACK');console.error('Wallet review failed:',e.message);return fail(res,500,'Falha ao processar solicitação')}
  });
  app.use('/api/admin/wallet',admin);
+ return {client};
 }
