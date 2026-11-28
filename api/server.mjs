@@ -1,3 +1,4 @@
+import {parseCookies} from './cookies.mjs';
 import {priceService} from './pricing.mjs';
 import {canTransitionOrder} from './order-transitions.mjs';
 import {supplierCall,syncSupplier} from './imeive.mjs';
@@ -56,7 +57,7 @@ const run=(sql,...params)=>db.prepare(sql).run(...params);
 const config=()=>Object.fromEntries(all('SELECT key,value FROM settings').map(x=>[x.key,Number(x.value)]));
 const quote=(usd,rate,margin,spread)=>Math.round(((Number(usd)*Number(rate))*(1+Number(margin)/100)+Number(spread))*100)/100;
 const wrap=fn=>(req,res)=>{try{fn(req,res)}catch(e){res.status(400).json({error:e.message})}};
-const cookies=req=>Object.fromEntries((req.headers.cookie||'').split(';').map(s=>s.trim().split('=').map(decodeURIComponent)).filter(a=>a.length===2));
+const cookies=parseCookies;
 const session=req=>getSession(cookies(req).ws_session);
 const guard=(req,res,next)=>{const user=session(req);if(!user)return res.status(401).json({error:'Login necessário'});req.user=user;next()};
 const adminOnly=(req,res,next)=>adminIpGate(req,res,()=>guard(req,res,()=>req.user.role==='admin'?next():res.status(403).json({error:'Acesso restrito'})));
