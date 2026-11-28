@@ -2,7 +2,7 @@
 id: AUX-20261128-agents-md
 agente: AuxiliarCodeAgent
 data: 2026-11-28
-pr: 49
+pr: 50
 branch: agent/docs-agents-deferred-modules
 base_sha: ec45b46
 final_sha: (ver PR)
