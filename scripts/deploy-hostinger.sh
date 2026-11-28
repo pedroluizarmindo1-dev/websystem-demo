@@ -10,6 +10,12 @@ LOG=/tmp/websystem-deploy-$STAMP.log
 exec > >(tee -a "$LOG") 2>&1
 echo "DEPLOY_START $STAMP"
 test "$(id -u)" -eq 0 || { echo 'Root required'; exit 1; }
+HOSTNAME_ACTUAL=$(hostname)
+if [[ "$HOSTNAME_ACTUAL" != "UNLOCKERTOOLS" ]]; then
+ echo "DEPLOY_HOST_IDENTITY_MISMATCH expected=UNLOCKERTOOLS actual=$HOSTNAME_ACTUAL" >&2
+ exit 1
+fi
+echo "DEPLOY_HOST_IDENTITY_OK $HOSTNAME_ACTUAL"
 test -f "$APP/compose.yaml" && test -f "$ARCHIVE" && test -x "$BACKUP_CMD"
 for cmd in docker tar rsync python3 curl; do command -v "$cmd" >/dev/null; done
 cd "$APP"
