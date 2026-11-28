@@ -160,7 +160,7 @@ export function mountMazzoPay(app,db,{client,adminGuard}){
   let row;
   db.exec('BEGIN IMMEDIATE');
   try{
-   const open=q("SELECT COUNT(*) AS n FROM mazzopay_charges WHERE client_id=? AND status IN ('criando','pendente') AND (expires_at IS NULL OR expires_at>?)",clientId,new Date().toISOString()).n;
+   const open=q("SELECT COUNT(*) AS n FROM mazzopay_charges WHERE client_id=? AND ((status='pendente' AND (expires_at IS NULL OR expires_at>?)) OR (status='criando' AND created_at>datetime('now','-30 minutes')))",clientId,new Date().toISOString()).n;
    if(open>=l.pending){db.exec('ROLLBACK');return fail(res,429,'Você já tem recargas PIX pendentes. Pague ou aguarde expirar antes de gerar outra.')}
    const depositId=Number(run("INSERT INTO wallet_deposits(client_id,method,amount_cents,reference) VALUES (?,'pix_manual',?,?)",clientId,amount,'mazzopay:pendente').lastInsertRowid);
    const referencia='ut-dep-'+depositId;
@@ -168,7 +168,10 @@ export function mountMazzoPay(app,db,{client,adminGuard}){
    const id=Number(run('INSERT INTO mazzopay_charges(deposit_id,client_id,client_key,referencia,amount_cents) VALUES (?,?,?,?,?)',depositId,clientId,key||null,referencia,amount).lastInsertRowid);
    audit(depositId,'client:'+clientId,'pix_charge_requested',String(amount));
    db.exec('COMMIT');row=q('SELECT * FROM mazzopay_charges WHERE id=?',id);
-  }catch(e){try{db.exec('ROLLBACK')}catch{}console.error('MazzoPay create failed:',e.message);return fail(res,500,'Falha ao registrar a recarga')}
+  }catch(e){try{db.exec('ROLLBACK')}catch{}
+   const raced=key&&q('SELECT * FROM mazzopay_charges WHERE client_id=? AND client_key=?',clientId,key);
+   if(raced)return raced.amount_cents===amount?res.status(200).json(view(raced)):fail(res,409,'Chave de idempotência já usada com outro valor');
+   console.error('MazzoPay create failed:',e.message);return fail(res,500,'Falha ao registrar a recarga')}
   const name=q('SELECT display_name FROM client_users WHERE id=?',clientId)?.display_name;
   try{await submit(row,name)}catch(e){return fail(res,e.transient?502:400,e.transient?'Não foi possível gerar o PIX agora; tente novamente':(e.code==='LIMITE_EXCEDIDO'?'Limite de recebimento atingido; tente um valor menor ou mais tarde':e.message),{code:e.code})}
   res.status(201).json(view(q('SELECT * FROM mazzopay_charges WHERE id=?',row.id)));

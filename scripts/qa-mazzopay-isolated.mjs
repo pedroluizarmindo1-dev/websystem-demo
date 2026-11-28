@@ -143,6 +143,15 @@ try{
  await req('POST','/api/client/wallet/pix/charges',{cookie:B,body:{amount_cents:1500}});
  await req('POST','/api/client/wallet/pix/charges',{cookie:B,body:{amount_cents:1600}});
  check((await req('POST','/api/client/wallet/pix/charges',{cookie:B,body:{amount_cents:1700}})).status===429,'4th pending charge blocked');
+ // concurrent submissions with the same client key resolve to one charge
+ const C=await makeClient('pix.c@example.test'),k3='qa-race-'+randomUUID().slice(0,8),createsBefore=mock.creates;
+ const race=await Promise.all([1,2,3].map(()=>req('POST','/api/client/wallet/pix/charges',{cookie:C,body:{amount_cents:2500},headers:{'Idempotency-Key':k3}})));
+ check(race.every(r=>r.status===200||r.status===201)&&new Set(race.map(r=>r.data.id)).size===1&&mock.creates===createsBefore+1,'concurrent duplicate submissions return the same charge');
+ // charges stuck in "criando" stop blocking new top-ups after 30 minutes
+ mock.down=true;for(const v of [1100,1200]){const r=await req('POST','/api/client/wallet/pix/charges',{cookie:C,body:{amount_cents:v}});check(r.status===502,'stuck charge '+v+' while provider is down')}mock.down=false;
+ check((await req('POST','/api/client/wallet/pix/charges',{cookie:C,body:{amount_cents:1300}})).status===429,'recent stuck charges still count toward the pending limit');
+ {const {DatabaseSync}=await import('node:sqlite');const db=new DatabaseSync(join(temp,'data','websystem.sqlite'));db.exec('PRAGMA busy_timeout=5000');db.prepare("UPDATE mazzopay_charges SET created_at=datetime('now','-31 minutes') WHERE status='criando'").run();db.close()}
+ check((await req('POST','/api/client/wallet/pix/charges',{cookie:C,body:{amount_cents:1300}})).status===201,'old stuck charges no longer block the client');
 
  // reconciliation through /eventos: one paid (missed webhook) and one expired
  const listB=(await req('GET','/api/client/wallet/pix/charges',{cookie:B})).data.filter(x=>x.status==='pendente');
