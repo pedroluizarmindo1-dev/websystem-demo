@@ -1,3 +1,4 @@
+import {parseCookies} from './cookies.mjs';
 import {hostingerMailReady,sendHostingerMail,getHostingerMailbox} from './hostinger-mail.mjs';
 import {randomBytes,scryptSync,timingSafeEqual,createHash} from 'node:crypto';
 import {Router} from 'express';
@@ -7,7 +8,7 @@ const digest=s=>createHash('sha256').update(s).digest('hex');
 const validEmail=s=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)&&s.length<=254;
 const fail=(res,code,msg)=>res.status(code).json({error:msg});
 const safePassword=p=>typeof p==='string'&&p.length>=16&&p.length<=256;
-const cookie=req=>Object.fromEntries((req.headers.cookie||'').split(';').map(v=>v.trim().split('=').map(decodeURIComponent)).filter(v=>v.length===2));
+const cookie=parseCookies;
 const tokenKey='ws_client';
 const secureCookie=(req,token,maxAge)=>tokenKey+'='+token+'; HttpOnly; SameSite=Lax; Path=/api/client; Max-Age='+maxAge+(process.env.COOKIE_SECURE==='true'?'; Secure':'');
 const hashPassword=(password,salt)=>scryptSync(password,salt,64).toString('hex');

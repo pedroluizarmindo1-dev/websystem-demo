@@ -29,10 +29,16 @@
 - Never expose tokens, credentials, IMEI or customer PII in logs or commits.
 - Preserve centralized order state machine, financial idempotency and supplier retries.
 - Never send live supplier orders or move real money during QA.
-- PIX payment webhooks and dynamic supplier-specific order forms are explicitly deferred.
+- Automatic PIX top-ups (MazzoPay webhook + reconciliation, PR #43) and supervised supplier submission (PR #46) were authorized by the project owner on 2026-11-28. Both ship disabled (`MAZZOPAY_ENABLED=false`, `SUPPLIER_ORDERS_ENABLED=false`) and are activated only through `docs/mazzopay-pix.md` and `docs/supplier-orders.md` after an approved deploy.
+- Supplier orders are never sent without per-order admin approval; uncertain submissions are never retried automatically.
+- Dynamic supplier-specific order forms remain deferred.
 
 ## Quality gates
 Run `npm ci`, `npm run build`, `npm audit --omit=dev --audit-level=high`, `node scripts/agents-orchestrator.mjs`, `node scripts/qa-order-transitions.mjs`, and `node scripts/qa-production-release-gates.mjs` plus module-specific QA. CI is authoritative for release readiness.
+
+## Inter-agent notes
+- Every change gets a note in `AI-WorkTeam/notes/` (format in `AI-WorkTeam/README.md`): what changed, `ERRO`/`AVISO`/`INFO` findings with stable IDs and state, and handoff points.
+- Update the state of findings you resolve; never delete another agent's findings.
 
 ## PR handoff checklist
 - [ ] Task owner and purpose
@@ -44,6 +50,7 @@ Run `npm ci`, `npm run build`, `npm audit --omit=dev --audit-level=high`, `node 
 - [ ] No secrets or customer data committed
 - [ ] CI green and integration HEAD rechecked
 - [ ] Production status accurately stated
+- [ ] Note added in `AI-WorkTeam/notes/`
 
 ## Definition of done
 Merged after review and green CI with documented evidence. Production release is a separate gated process; verify public `/api/health` version and commit after deployment.
