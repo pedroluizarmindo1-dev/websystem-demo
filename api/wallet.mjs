@@ -62,6 +62,7 @@ export function mountWallet(app,db,{adminGuard}){
    const d=q('SELECT * FROM wallet_deposits WHERE id=?',id);
    if(!d){db.exec('ROLLBACK');return fail(res,404,'Solicitação não encontrada')}
    if(d.status!=='pending'){db.exec('ROLLBACK');return fail(res,409,'Solicitação já analisada')}
+   if(String(d.reference||'').startsWith('mazzopay:')){db.exec('ROLLBACK');return fail(res,409,'Recarga PIX automática: liquidada somente pela confirmação do provedor')}
    if(decision==='approved'&&!(d.method==='pix_manual'?d.reference:d.tx_hash)){db.exec('ROLLBACK');return fail(res,409,'Comprovante ou transação ausente')}
    const actor=String(req.user.username||'admin').slice(0,100);
    run('UPDATE wallet_deposits SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND status=?',decision,actor,id,'pending');
@@ -76,4 +77,5 @@ export function mountWallet(app,db,{adminGuard}){
   }catch(e){db.exec('ROLLBACK');console.error('Wallet review failed:',e.message);return fail(res,500,'Falha ao processar solicitação')}
  });
  app.use('/api/admin/wallet',admin);
+ return {client};
 }
