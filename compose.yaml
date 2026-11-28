@@ -20,6 +20,14 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # Automatic PIX top-ups (MazzoPay). Keep disabled until the activation checklist in docs/mazzopay-pix.md is done.
+      MAZZOPAY_ENABLED: ${MAZZOPAY_ENABLED:-false}
+      MAZZOPAY_API_KEY: ${MAZZOPAY_API_KEY:-}
+      MAZZOPAY_WEBHOOK_SECRET: ${MAZZOPAY_WEBHOOK_SECRET:-}
+      MAZZOPAY_MIN_CENTS: ${MAZZOPAY_MIN_CENTS:-1000}
+      MAZZOPAY_MAX_CENTS: ${MAZZOPAY_MAX_CENTS:-100000}
+      # Supervised supplier submission (admin approval per order). Keep false until the activation checklist in docs/supplier-orders.md is done.
+      SUPPLIER_ORDERS_ENABLED: ${SUPPLIER_ORDERS_ENABLED:-false}
     ports:
       - "127.0.0.1:3100:3100"
     volumes:
