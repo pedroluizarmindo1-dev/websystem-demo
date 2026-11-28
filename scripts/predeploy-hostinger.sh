@@ -8,7 +8,12 @@ echo "PREFLIGHT_STEP $STEP"
 echo "PREFLIGHT_START $(date -u +%FT%TZ)"
 STEP=verify-host-identity
 echo "PREFLIGHT_STEP $STEP"
-test "$(hostname)" = UNLOCKERTOOLS || echo 'Hostname differs from short expected name; verify server identity manually'
+HOSTNAME_ACTUAL=$(hostname)
+if [[ "$HOSTNAME_ACTUAL" != "UNLOCKERTOOLS" ]]; then
+  echo "HOST_IDENTITY_MISMATCH expected=UNLOCKERTOOLS actual=$HOSTNAME_ACTUAL" >&2
+  exit 1
+fi
+echo "HOST_IDENTITY_OK $HOSTNAME_ACTUAL"
 STEP=verify-app-directory
 echo "PREFLIGHT_STEP $STEP"
 test -d "$APP" && test -f "$APP/compose.yaml" || { echo 'Missing WebSystem checkout'; exit 1; }
