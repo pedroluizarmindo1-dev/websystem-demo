@@ -1,10 +1,12 @@
+import {parseCookies} from './cookies.mjs';
 import {createHash} from 'node:crypto';
 import {Router} from 'express';
 const sha=s=>createHash('sha256').update(s).digest('hex');
 const fail=(res,status,error)=>res.status(status).json({error});
 const integer=v=>Number.isSafeInteger(v)&&v>0;
-const cookie=req=>Object.fromEntries((req.headers.cookie||'').split(';').map(s=>s.trim().split('=').map(decodeURIComponent)).filter(x=>x.length===2));
-const maxAmount=100000000; // BRL 1,000,000 in cents; operational ceiling must be reduced before launch
+const cookie=parseCookies;
+const maxAmount=100000; // BRL 1,000 per manual deposit
+const maxPending=3;
 export function mountWallet(app,db,{adminGuard}){
  db.exec(`CREATE TABLE IF NOT EXISTS wallet_accounts(client_id INTEGER PRIMARY KEY REFERENCES client_users(id) ON DELETE RESTRICT,balance_cents INTEGER NOT NULL DEFAULT 0 CHECK(balance_cents>=0));
  CREATE TABLE IF NOT EXISTS wallet_deposits(id INTEGER PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES client_users(id),method TEXT NOT NULL CHECK(method IN ('pix_manual','usdt_bep20')),amount_cents INTEGER NOT NULL CHECK(amount_cents>0),status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),reference TEXT,tx_hash TEXT,reviewed_by TEXT,reviewed_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
@@ -33,6 +35,7 @@ export function mountWallet(app,db,{adminGuard}){
   const {method,amount_cents}=req.body||{};
   if(!['pix_manual','usdt_bep20'].includes(method)||!integer(amount_cents)||amount_cents>maxAmount)return fail(res,400,'Método ou valor inválido');
   if(method==='usdt_bep20'&&(!process.env.USDT_BEP20_CONTRACT||!process.env.USDT_BEP20_ADDRESS))return fail(res,503,'USDT BEP20 ainda não configurado');
+  if(q("SELECT COUNT(*) AS n FROM wallet_deposits WHERE client_id=? AND status='pending'",req.walletClient.id).n>=maxPending)return fail(res,429,'Limite de recargas pendentes atingido');
   const id=Number(run('INSERT INTO wallet_deposits(client_id,method,amount_cents) VALUES (?,?,?)',req.walletClient.id,method,amount_cents).lastInsertRowid);
   audit(id,'client:'+req.walletClient.id,'deposit_requested',method);
   res.status(201).json({id,status:'pending',method,amount_cents,note:'Nenhum saldo será creditado automaticamente'});
@@ -66,6 +69,7 @@ export function mountWallet(app,db,{adminGuard}){
    const actor=String(req.user.username||'admin').slice(0,100);
    run('UPDATE wallet_deposits SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND status=?',decision,actor,id,'pending');
    if(decision==='approved'){
+    if(d.method==='pix_manual'&&q("SELECT id FROM wallet_deposits WHERE method='pix_manual' AND status='approved' AND lower(trim(reference))=lower(trim(?)) AND id<>?",d.reference,id)){db.exec('ROLLBACK');return fail(res,409,'Referência PIX já creditada')}
     run('INSERT OR IGNORE INTO wallet_accounts(client_id,balance_cents) VALUES (?,0)',d.client_id);
     run('UPDATE wallet_accounts SET balance_cents=balance_cents+? WHERE client_id=?',d.amount_cents,d.client_id);
     const balance=q('SELECT balance_cents FROM wallet_accounts WHERE client_id=?',d.client_id).balance_cents;
