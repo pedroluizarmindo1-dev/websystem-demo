@@ -7,7 +7,7 @@ import './admin-ops.css';
 
 const PAGE_SIZE=25;
 const STATUS_LABELS={pendente:'Pendente',em_processamento:'Em andamento',concluido:'Concluído',entregue:'Entregue',rejeitado:'Rejeitado',reembolsado:'Reembolsado'};
-const PAYMENT_LABELS={pendente:'Pendente',pago:'Pago'};
+const PAYMENT_LABELS={pendente:'Pendente',pago:'Pago',reembolsado:'Reembolsado'};
 const KIND_LABELS={imei:'IMEI',server:'Server',api:'API',legacy:'Legado'};
 const SORT_LABELS={id_desc:'Mais recentes',id_asc:'Mais antigas',updated_desc:'Última atualização',price_desc:'Maior valor'};
 const TABS=[['resumo','Resumo'],['os','O.S.'],['rascunhos','Rascunhos'],['auditoria','Auditoria']];

@@ -8,6 +8,7 @@ import {mountCommerce} from './commerce.mjs';
 import {mountClientArea} from './client-area.mjs';
 import {mountWallet} from './wallet.mjs';
 import {mountMazzoPay} from './mazzopay.mjs';
+import {mountCheckout,refundOrderCharge} from './checkout.mjs';
 import {mountAdminOps} from './admin-ops.mjs';
 import {getAnnouncements} from './telegram-announcements.mjs';
 import {syncEntireCatalog,getCatalogSyncStatus} from './telegram-catalog.mjs';
@@ -98,6 +99,7 @@ mountClientArea(app,db,{adminGuard:guard});
 mountAdminOps(app,db);
 const walletApi=mountWallet(app,db,{adminGuard:guard});
 mazzoWebhook=mountMazzoPay(app,db,{client:walletApi.client,adminGuard:guard}).webhook;
+mountCheckout(app,db,{client:walletApi.client,audit:(...args)=>audit(...args)}); // audit is defined further down; called only at request time
 mountCommerce(app,db,{adminGuard:adminOnly,config,quote,audit:(entity,id,action,detail='')=>run('INSERT INTO audit_logs(entity,entity_id,action,detail) VALUES (?,?,?,?)',entity,id,action,detail)});
 // Public order tracking requires an unguessable token. Never expose customer details, serials, contact or price.
 const publicLookupAttempts=new Map();
@@ -212,7 +214,10 @@ app.patch('/api/orders/:id',adminOnly,wrap((req,res)=>{
   run('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',req.body.status,id);
   run('INSERT INTO order_status_history(order_id,previous_status,new_status,origin,actor) VALUES (?,?,?,?,?)',id,current.status,req.body.status,'admin_status',req.user?.username||null);
   audit('orders',id,'status',req.body.status);
-  db.exec('COMMIT');res.json({ok:true,changed:true});
+  // Orders paid with the client wallet get the amount back once when they are rejected or refunded.
+  const refunded=['rejeitado','reembolsado'].includes(req.body.status)?refundOrderCharge(db,id,req.user?.username||'admin'):0;
+  if(refunded)audit('orders',id,'wallet_refund',String(refunded));
+  db.exec('COMMIT');res.json({ok:true,changed:true,wallet_refund_cents:refunded});
  }catch(e){db.exec('ROLLBACK');throw e}
 }));
 app.get('/api/remote-sessions',adminOnly,wrap((req,res)=>res.json(all('SELECT * FROM remote_sessions ORDER BY id DESC LIMIT 200'))));

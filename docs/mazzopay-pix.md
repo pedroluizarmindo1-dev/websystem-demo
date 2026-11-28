@@ -36,5 +36,8 @@ Nunca coloque a chave ou o segredo no repositório, em issues ou em logs.
 7. Teste real controlado: uma recarga de **R$ 10,00** com uma conta de cliente da equipe, paga pelo app do banco. Conferir o crédito único no extrato e o registro em `/api/admin/wallet/pix/charges`.
 8. Rollback sem código: `MAZZOPAY_ENABLED=false` (a tela some; cobranças já criadas continuam sendo reconciliadas quando o módulo voltar).
 
+## Uso do saldo em pedidos
+Ver `docs/wallet-checkout.md`: o cliente paga um rascunho com o saldo e o pedido entra como "pendente / pago".
+
 ## Fora do escopo
-Saques, estornos automáticos, divisão de taxas e uso do saldo em pedidos (o débito na carteira depende da conversão rascunho → pedido).
+Saques, estornos de PIX pela MazzoPay e divisão de taxas.
