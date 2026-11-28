@@ -196,6 +196,23 @@ body.ca-signed-in .ca-topline{display:none}
 #walletHistory article .ca-in{color:#7ee8c0}#walletHistory article .ca-out{color:#f4a9a0}
 #walletHistory>p{margin:0;padding:20px;border:1px dashed var(--ca-line-strong);border-radius:16px;text-align:center;color:var(--ca-muted);font-size:14px}
 
+/* PIX top-up */
+.ca-pix-presets{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.ut-client .ca-pix-presets button{min-height:42px;padding:8px 16px;font-size:14px}
+.ut-client .ca-pix-presets button[aria-pressed="true"]{border-color:var(--ca-accent);background:#2dd4bf1f}
+.ca-pix-limits{font-size:12.5px;margin:-6px 0 14px!important}
+.ca-pix-box{display:flex;gap:20px;align-items:center;flex-wrap:wrap;padding:16px;border-radius:18px;border:1px solid #2dd4bf40;background:#2dd4bf0a;margin:6px 0 16px}
+#pixQr{width:220px;height:220px;border-radius:14px;background:#fff;padding:10px;image-rendering:pixelated}
+.ca-pix-info strong{display:block;font-size:28px;font-weight:850;font-variant-numeric:tabular-nums}
+.ca-pix-status{display:inline-flex;align-items:center;gap:8px;margin:10px 0 4px!important;font-weight:700;font-size:14px;color:#f1d58a}
+.ca-pix-status::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px #ffffff10}
+.ca-pix-status.ca-ok{color:#7ee8c0}.ca-pix-status.ca-bad{color:#f4a9a0}
+#pixCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;min-height:88px}
+#pixList{display:grid;gap:8px;margin-top:16px}
+#pixList article{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;border:1px solid var(--ca-line);background:#0b1211;font-size:14px}
+#pixList article p{margin:2px 0 0;font-size:12.5px;color:var(--ca-muted)}
+#walletTopup{margin-top:4px;align-self:flex-start}
+
 /* tablet */
 @media(max-width:1100px){.ca-welcome{grid-template-columns:1fr}#clientKpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:960px){
@@ -216,6 +233,8 @@ body.ca-signed-in .ca-topline{display:none}
  .ca-split{grid-template-columns:1fr}
 }
 @media(max-width:640px){
+ .ca-pix-box{flex-direction:column;align-items:center;text-align:center}
+ .ut-client .ca-pix-presets button{flex:1 1 calc(50% - 4px)}
  .ca-types{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none}
  .ut-client .ca-types button{flex:1 0 auto;padding:8px 12px}
  .ca-topline,.ca-auth{width:calc(100% - 32px)}
@@ -307,7 +326,7 @@ body.ca-signed-in .ca-topline{display:none}
     <section data-client-panel="home">
      <div class="ca-welcome">
       <div class="ca-hello"><h2>Bem-vindo de volta</h2><p>Monte um novo pedido a partir do catálogo, acompanhe o andamento e fale com o suporte.</p><div class="ca-actions"><button type="button" data-goto="place">Novo pedido</button><button type="button" class="secondary" data-goto="orders">Ver meus pedidos</button></div></div>
-      <div class="ca-balance"><span>Carteira</span><strong id="walletBalance">Saldo: R$ 0,00</strong><p>Recargas passam por conferência manual. Nenhum crédito é automático.</p></div>
+      <div class="ca-balance"><span>Carteira</span><strong id="walletBalance">Saldo: R$ 0,00</strong><p id="walletHint">Recargas passam por conferência manual. Nenhum crédito é automático.</p><button type="button" class="secondary" id="walletTopup" data-goto="wallet" hidden>Recarregar com PIX</button></div>
      </div>
      <div class="ca-panel"><h3>Resumo da conta</h3><p id="accountSummary" class="muted">Carregando resumo…</p></div>
      <div class="ca-shortcuts">
@@ -340,7 +359,7 @@ body.ca-signed-in .ca-topline{display:none}
 
     <section data-client-panel="wallet">
      <div class="ca-page-head"><div><h2>Carteira</h2><p>Saldo e movimentações da sua conta.</p></div></div>
-     <div class="ca-panel"><div class="ca-wallet-top"><div><span class="ca-label">Saldo disponível</span><strong id="walletPanelBalance">R$ 0,00</strong></div><a class="ca-btn-link" href="/client/wallet">Abrir carteira completa →</a></div><p id="walletNotice">Recargas e pagamentos não estão disponíveis nesta fase. Nenhuma cobrança será realizada.</p></div><div class="ca-panel"><h3>Movimentações</h3><div id="walletHistory" aria-live="polite"><p>Carregando…</p></div></div>
+     <div class="ca-panel"><div class="ca-wallet-top"><div><span class="ca-label">Saldo disponível</span><strong id="walletPanelBalance">R$ 0,00</strong></div><a class="ca-btn-link" href="/client/wallet">Abrir carteira completa →</a></div><p id="walletNotice">Recargas e pagamentos não estão disponíveis nesta fase. Nenhuma cobrança será realizada.</p></div><div class="ca-panel" id="pixPanel" hidden><h3>Recarregar com PIX</h3><p class="muted">O saldo entra na carteira automaticamente assim que o banco confirma o pagamento.</p><form id="pixForm"><div class="ca-pix-presets" role="group" aria-label="Valores sugeridos"><button type="button" class="secondary" data-pix-amount="2000">R$ 20</button><button type="button" class="secondary" data-pix-amount="5000">R$ 50</button><button type="button" class="secondary" data-pix-amount="10000">R$ 100</button><button type="button" class="secondary" data-pix-amount="20000">R$ 200</button></div><label>Valor da recarga (R$)<input id="pixAmount" name="amount" inputmode="decimal" autocomplete="off" placeholder="Ex.: 50,00" required></label><p class="muted ca-pix-limits" id="pixLimits"></p><button type="submit" id="pixSubmit">Gerar PIX</button></form><div id="pixCharge" hidden><div class="ca-pix-box"><img id="pixQr" alt="QR Code PIX" width="220" height="220" hidden><div class="ca-pix-info"><span class="ca-label">Valor</span><strong id="pixValue"></strong><p id="pixStatus" class="ca-pix-status" role="status"></p><p class="muted" id="pixExpires"></p></div></div><label>PIX copia e cola<textarea id="pixCode" readonly rows="3"></textarea></label><div class="ca-actions"><button type="button" id="pixCopy">Copiar código</button><button type="button" class="secondary" id="pixNew">Nova recarga</button></div></div><div id="pixList"></div></div><div class="ca-panel"><h3>Movimentações</h3><div id="walletHistory" aria-live="polite"><p>Carregando…</p></div></div>
     </section>
 
     <section data-client-panel="support">
